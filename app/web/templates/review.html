@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Weekend Report - {{ run.run_id }}</h1>
+<p>Overall: {{ run.automation_status }}</p>
+<section><h2>Modules</h2>
+  {% for module in ["portainer","doctor","rabbitmq","recording","infrastructure","database"] %}
+  <article><h3>{{ module|upper }}</h3><a href="/runs/{{ run.run_id }}/{{ module }}">Open HTML</a><textarea name="note-{{ module }}"></textarea></article>
+  {% endfor %}
+</section>
+<section><h2>Splunk Dashboards</h2><button type="button" onclick="document.querySelectorAll('[data-dashboard-url]').forEach(a=>window.open(a.href,'_blank'))">OPEN ALL DASHBOARDS</button>
+  {% for dashboard in dashboards %}
+  <article><a data-dashboard-url href="{{ dashboard.url }}" target="_blank">{{ dashboard.display_name }}</a><textarea name="splunk-{{ dashboard.id }}"></textarea></article>
+  {% endfor %}
+</section>
+<section><h2>Persisted Notes</h2>{% for note in notes %}<p>{{ note.scope }} {{ note.module or note.dashboard_id or note.result_id or "general" }}: {{ note.note }}</p>{% endfor %}</section>
+<button>SAVE NOTES</button><button>FINAL CONFIRMATION</button>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ module|upper }} - {{ run.run_id }}</h1>
+<table><tr><th>ID</th><th>Site</th><th>Target</th><th>Status</th><th>Expected</th><th>Actual</th><th>Message</th></tr>
+{% for r in results %}<tr><td>{{ r.id }}</td><td>{{ r.site or "" }}</td><td>{{ r.target or "" }}</td><td>{{ r.status }}</td><td><pre>{{ r.expected }}</pre></td><td><pre>{{ r.actual }}</pre></td><td>{{ r.message }}</td></tr>{% endfor %}
+</table>
+<h2>Reviewer Notes</h2>
+<textarea data-note-scope="module" data-module="{{ module }}"></textarea>
+{% endblock %}

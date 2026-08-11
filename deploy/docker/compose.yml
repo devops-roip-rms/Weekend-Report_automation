@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: weekend_report
+      POSTGRES_USER: weekend_report
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-<TBD>}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weekend_report -d weekend_report"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [backend]
+    logging: &default_logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  web:
+    build:
+      context: ../..
+    image: weekend-report:local
+    command: ["uvicorn", "app.web.main:app", "--host", "0.0.0.0", "--port", "8080"]
+    env_file: ./env.example
+    ports:
+      - "8080:8080"
+    volumes:
+      - evidence:/app/runs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [frontend, backend]
+    restart: unless-stopped
+    logging: *default_logging
+
+  worker:
+    image: weekend-report:local
+    command: ["python", "-m", "app.worker.main"]
+    env_file: ./env.example
+    volumes:
+      - evidence:/app/runs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_started
+    networks: [backend]
+    restart: unless-stopped
+    logging: *default_logging
+
+volumes:
+  db-data:
+  evidence:
+
+networks:
+  frontend:
+  backend:
+    internal: true

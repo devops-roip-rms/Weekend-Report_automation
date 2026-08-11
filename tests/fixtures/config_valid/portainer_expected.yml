@@ -1,0 +1,55 @@
+{
+  "connections": {},
+  "sites": {
+    "site1": {
+      "services": [
+        {
+          "id": "svc1",
+          "name": "recording-gateway",
+          "stack": "recording",
+          "expected_image": "example/recording-gateway:fixture",
+          "expected_replicas": 3,
+          "healthy_replicas_required": 3,
+          "required": true
+        }
+      ]
+    },
+    "site2": {
+      "services": [
+        {
+          "id": "svc1",
+          "name": "recording-gateway",
+          "stack": "recording",
+          "expected_image": "example/recording-gateway:fixture",
+          "expected_replicas": 3,
+          "healthy_replicas_required": 3,
+          "required": true
+        }
+      ]
+    }
+  },
+  "fixture_actual": {
+    "site1": {
+      "services": [
+        {
+          "name": "recording-gateway",
+          "expected_replicas": 3,
+          "running_replicas": 3,
+          "healthy_replicas": 3,
+          "image": "example/recording-gateway:fixture"
+        }
+      ]
+    },
+    "site2": {
+      "services": [
+        {
+          "name": "recording-gateway",
+          "expected_replicas": 3,
+          "running_replicas": 3,
+          "healthy_replicas": 3,
+          "image": "example/recording-gateway:fixture"
+        }
+      ]
+    }
+  }
+}

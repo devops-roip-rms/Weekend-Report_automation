@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Splunk - {{ run.run_id }}</h1>
+<button type="button" onclick="document.querySelectorAll('[data-dashboard-url]').forEach(a=>window.open(a.href,'_blank'))">OPEN ALL DASHBOARDS</button>
+{% for dashboard in dashboards %}
+<article><h2>{{ dashboard.display_name }}</h2><a data-dashboard-url href="{{ dashboard.url }}" target="_blank">Open</a><textarea name="splunk-{{ dashboard.id }}"></textarea></article>
+{% endfor %}
+{% endblock %}

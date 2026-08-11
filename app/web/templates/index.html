@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Weekend Report Automation</h1>
+{% if preflight.ok %}
+<form method="post" action="/runs"><button type="submit">RUN WEEKEND REPORT</button></form>
+{% else %}
+<button disabled>RUN WEEKEND REPORT</button>
+<h2>Configuration Preflight</h2>
+<ul>{% for line in preflight.lines() %}<li>{{ line }}</li>{% endfor %}</ul>
+{% endif %}
+<h2>Recent Runs</h2>
+<table><tr><th>Run</th><th>State</th><th>Status</th></tr>
+{% for run in runs %}<tr><td><a href="/runs/{{ run.run_id }}">{{ run.run_id }}</a></td><td>{{ run.state }}</td><td>{{ run.automation_status or "" }}</td></tr>{% endfor %}
+</table>
+{% endblock %}

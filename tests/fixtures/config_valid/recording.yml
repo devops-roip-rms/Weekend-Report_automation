@@ -1,0 +1,26 @@
+{
+  "sites": {
+    "site1": {
+      "mode": "fixture"
+    },
+    "site2": {
+      "mode": "fixture"
+    }
+  },
+  "fixture_actual": {
+    "sites": {
+      "site1": {
+        "identity": "WEEKEND_TEST_SITE1_WR-20260811-000000",
+        "exact_identity_verified": true,
+        "functional_status": "PASS",
+        "cleanup_status": "PASS"
+      },
+      "site2": {
+        "identity": "WEEKEND_TEST_SITE2_WR-20260811-000000",
+        "exact_identity_verified": true,
+        "functional_status": "PASS",
+        "cleanup_status": "PASS"
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+body { font-family: Arial, sans-serif; margin: 0; background: #f7f8fa; color: #17202a; }
+header { background: #152238; color: white; padding: 12px 24px; }
+header a { color: white; text-decoration: none; font-weight: 700; }
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+table { border-collapse: collapse; width: 100%; background: white; }
+th, td { border: 1px solid #d8dde6; padding: 8px; text-align: left; vertical-align: top; }
+button, a { margin: 4px; }
+textarea { width: 100%; min-height: 80px; }
+article, section { margin: 16px 0; }
+pre { white-space: pre-wrap; max-width: 420px; }

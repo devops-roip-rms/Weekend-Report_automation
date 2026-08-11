@@ -1,0 +1,52 @@
+{
+  "connections": {
+    "site1": {
+      "url_env": "PORTAINER_SITE1_URL",
+      "token_env": "PORTAINER_SITE1_TOKEN",
+      "endpoint_id": "<TBD>",
+      "tls_verify": "<TBD>",
+      "timeouts": {
+        "connect": "<TBD>",
+        "read": "<TBD>"
+      }
+    },
+    "site2": {
+      "url_env": "PORTAINER_SITE2_URL",
+      "token_env": "PORTAINER_SITE2_TOKEN",
+      "endpoint_id": "<TBD>",
+      "tls_verify": "<TBD>",
+      "timeouts": {
+        "connect": "<TBD>",
+        "read": "<TBD>"
+      }
+    }
+  },
+  "sites": {
+    "site1": {
+      "services": [
+        {
+          "id": "<TBD>",
+          "name": "<TBD>",
+          "stack": "<TBD>",
+          "expected_image": "<TBD>",
+          "expected_replicas": "<TBD>",
+          "healthy_replicas_required": "<TBD>",
+          "required": "<TBD>"
+        }
+      ]
+    },
+    "site2": {
+      "services": [
+        {
+          "id": "<TBD>",
+          "name": "<TBD>",
+          "stack": "<TBD>",
+          "expected_image": "<TBD>",
+          "expected_replicas": "<TBD>",
+          "healthy_replicas_required": "<TBD>",
+          "required": "<TBD>"
+        }
+      ]
+    }
+  }
+}

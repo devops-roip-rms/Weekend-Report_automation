@@ -1,0 +1,104 @@
+{
+  "connections": {
+    "site1": {
+      "url_env": "RABBITMQ_SITE1_URL",
+      "user_env": "RABBITMQ_SITE1_USER",
+      "password_env": "RABBITMQ_SITE1_PASSWORD",
+      "tls_verify": "<TBD>",
+      "timeout": "<TBD>",
+      "retry": "<TBD>"
+    },
+    "site2": {
+      "url_env": "RABBITMQ_SITE2_URL",
+      "user_env": "RABBITMQ_SITE2_USER",
+      "password_env": "RABBITMQ_SITE2_PASSWORD",
+      "tls_verify": "<TBD>",
+      "timeout": "<TBD>",
+      "retry": "<TBD>"
+    }
+  },
+  "sites": {
+    "site1": {
+      "vhosts": [
+        {
+          "name": "<TBD>",
+          "required": "<TBD>"
+        }
+      ],
+      "queues": [
+        {
+          "vhost": "<TBD>",
+          "name": "<TBD>",
+          "durable": "<TBD>",
+          "auto_delete": "<TBD>",
+          "exclusive": "<TBD>",
+          "min_consumers": "<TBD>",
+          "warning_messages": "<TBD>",
+          "critical_messages": "<TBD>",
+          "required": "<TBD>"
+        }
+      ],
+      "exchanges": [
+        {
+          "vhost": "<TBD>",
+          "name": "<TBD>",
+          "type": "<TBD>",
+          "durable": "<TBD>",
+          "auto_delete": "<TBD>",
+          "required": "<TBD>"
+        }
+      ],
+      "bindings": [
+        {
+          "vhost": "<TBD>",
+          "source": "<TBD>",
+          "destination_type": "<TBD>",
+          "destination": "<TBD>",
+          "routing_key": "<TBD>",
+          "required": "<TBD>"
+        }
+      ]
+    },
+    "site2": {
+      "vhosts": [
+        {
+          "name": "<TBD>",
+          "required": "<TBD>"
+        }
+      ],
+      "queues": [
+        {
+          "vhost": "<TBD>",
+          "name": "<TBD>",
+          "durable": "<TBD>",
+          "auto_delete": "<TBD>",
+          "exclusive": "<TBD>",
+          "min_consumers": "<TBD>",
+          "warning_messages": "<TBD>",
+          "critical_messages": "<TBD>",
+          "required": "<TBD>"
+        }
+      ],
+      "exchanges": [
+        {
+          "vhost": "<TBD>",
+          "name": "<TBD>",
+          "type": "<TBD>",
+          "durable": "<TBD>",
+          "auto_delete": "<TBD>",
+          "required": "<TBD>"
+        }
+      ],
+      "bindings": [
+        {
+          "vhost": "<TBD>",
+          "source": "<TBD>",
+          "destination_type": "<TBD>",
+          "destination": "<TBD>",
+          "routing_key": "<TBD>",
+          "required": "<TBD>"
+        }
+      ]
+    }
+  }
+}

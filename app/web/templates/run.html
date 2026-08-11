@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ run.run_id }}</h1>
+<p>State: {{ run.state }} | Automation: {{ run.automation_status }}</p>
+<nav>
+  <a href="/runs/{{ run.run_id }}/review">Review</a>
+  <a href="/runs/{{ run.run_id }}/portainer">Portainer</a>
+  <a href="/runs/{{ run.run_id }}/doctor">DOCTOR</a>
+  <a href="/runs/{{ run.run_id }}/rabbitmq">RabbitMQ</a>
+  <a href="/runs/{{ run.run_id }}/recording">Recording</a>
+  <a href="/runs/{{ run.run_id }}/infrastructure">Infrastructure</a>
+  <a href="/runs/{{ run.run_id }}/database">Database</a>
+  <a href="/runs/{{ run.run_id }}/splunk">Splunk</a>
+</nav>
+<table><tr><th>Module</th><th>Site</th><th>Check</th><th>Status</th><th>Message</th></tr>
+{% for r in results %}<tr><td>{{ r.module }}</td><td>{{ r.site or "" }}</td><td>{{ r.check_id }}</td><td>{{ r.status }}</td><td>{{ r.message }}</td></tr>{% endfor %}
+</table>
+{% endblock %}
