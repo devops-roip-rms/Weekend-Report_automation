@@ -1,52 +1,88 @@
 {
-  "connections": {
-    "site1": {
-      "url_env": "PORTAINER_SITE1_URL",
-      "token_env": "PORTAINER_SITE1_TOKEN",
-      "endpoint_id": "<TBD>",
-      "tls_verify": "<TBD>",
-      "timeouts": {
-        "connect": "<TBD>",
-        "read": "<TBD>"
+  "collection_mode": "live",
+  "defaults": {
+    "required": true,
+    "expected": {
+      "service_state": "<TBD>",
+      "task_state_policy": {
+        "failed": "FAIL",
+        "rejected": "FAIL",
+        "restarting": "FAIL",
+        "starting": "<TO_VERIFY>"
       }
-    },
-    "site2": {
-      "url_env": "PORTAINER_SITE2_URL",
-      "token_env": "PORTAINER_SITE2_TOKEN",
-      "endpoint_id": "<TBD>",
-      "tls_verify": "<TBD>",
-      "timeouts": {
-        "connect": "<TBD>",
-        "read": "<TBD>"
+    }
+  },
+  "services": {
+    "<TBD>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
       }
     }
   },
   "sites": {
     "site1": {
-      "services": [
-        {
-          "id": "<TBD>",
-          "name": "<TBD>",
-          "stack": "<TBD>",
-          "expected_image": "<TBD>",
-          "expected_replicas": "<TBD>",
-          "healthy_replicas_required": "<TBD>",
-          "required": "<TBD>"
+      "environment_type": "docker_swarm",
+      "service_inventory": "common",
+      "connection": {
+        "url_env": "PORTAINER_SITE1_URL",
+        "endpoint_id": "<TBD>",
+        "api_contract": "<TO_VERIFY>",
+        "auth": {
+          "type": "<TO_VERIFY>",
+          "token_env": "PORTAINER_SITE1_TOKEN"
+        },
+        "tls": {
+          "verify": "<TO_VERIFY>",
+          "ca_file_env": "PORTAINER_SITE1_CA_FILE"
+        },
+        "timeouts": {
+          "connect_seconds": "<TBD>",
+          "read_seconds": "<TBD>"
+        },
+        "retries": {
+          "attempts": "<TBD>",
+          "backoff_seconds": "<TBD>"
         }
-      ]
+      },
+      "overrides": {
+        "services": {}
+      }
     },
     "site2": {
-      "services": [
-        {
-          "id": "<TBD>",
-          "name": "<TBD>",
-          "stack": "<TBD>",
-          "expected_image": "<TBD>",
-          "expected_replicas": "<TBD>",
-          "healthy_replicas_required": "<TBD>",
-          "required": "<TBD>"
+      "environment_type": "docker_swarm",
+      "service_inventory": "common",
+      "connection": {
+        "url_env": "PORTAINER_SITE2_URL",
+        "endpoint_id": "<TBD>",
+        "api_contract": "<TO_VERIFY>",
+        "auth": {
+          "type": "<TO_VERIFY>",
+          "token_env": "PORTAINER_SITE2_TOKEN"
+        },
+        "tls": {
+          "verify": "<TO_VERIFY>",
+          "ca_file_env": "PORTAINER_SITE2_CA_FILE"
+        },
+        "timeouts": {
+          "connect_seconds": "<TBD>",
+          "read_seconds": "<TBD>"
+        },
+        "retries": {
+          "attempts": "<TBD>",
+          "backoff_seconds": "<TBD>"
         }
-      ]
+      },
+      "overrides": {
+        "services": {}
+      }
     }
   }
 }

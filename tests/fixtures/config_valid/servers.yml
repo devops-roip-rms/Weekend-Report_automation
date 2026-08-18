@@ -23,6 +23,15 @@
               "required": true
             }
           ],
+          "nfs_mounts": [
+            {
+              "source": "nfs-fixture:/exports/recordings",
+              "mountpoint": "/mnt/recordings",
+              "warning_percent": 70,
+              "critical_percent": 85,
+              "required": true
+            }
+          ],
           "chrony": [
             {
               "timezone": "UTC",
@@ -51,6 +60,15 @@
               "required": true
             }
           ],
+          "nfs_mounts": [
+            {
+              "source": "nfs-fixture:/exports/recordings",
+              "mountpoint": "/mnt/recordings",
+              "warning_percent": 70,
+              "critical_percent": 85,
+              "required": true
+            }
+          ],
           "chrony": [
             {
               "timezone": "UTC",
@@ -71,8 +89,19 @@
           "srv1": {
             "reachable": true,
             "df": "Filesystem Size Used Avail Use% Mounted on\\n/dev/sda1 100G 20G 80G 20% /",
+            "nfs_mounts": [
+              {
+                "source": "nfs-fixture:/exports/recordings",
+                "mountpoint": "/mnt/recordings",
+                "destination": "/mnt/recordings",
+                "reachable": true,
+                "usable": true,
+                "utilization_percent": 30
+              }
+            ],
             "chrony": {
               "synchronized": true,
+              "source": "fixture-ntp",
               "offset": 0.1
             }
           }
@@ -83,8 +112,19 @@
           "srv2": {
             "reachable": true,
             "df": "Filesystem Size Used Avail Use% Mounted on\\n/dev/sda1 100G 20G 80G 20% /",
+            "nfs_mounts": [
+              {
+                "source": "nfs-fixture:/exports/recordings",
+                "mountpoint": "/mnt/recordings",
+                "destination": "/mnt/recordings",
+                "reachable": true,
+                "usable": true,
+                "utilization_percent": 30
+              }
+            ],
             "chrony": {
               "synchronized": true,
+              "source": "fixture-ntp",
               "offset": 0.1
             }
           }

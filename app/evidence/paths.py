@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 SAFE_SEGMENT = re.compile(r"[^A-Za-z0-9_.=-]+")
 
 

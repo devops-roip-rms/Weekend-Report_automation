@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 SQLITE_SCHEMA = [
-    '''
+    """
     CREATE TABLE IF NOT EXISTS runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         run_id TEXT NOT NULL UNIQUE,
@@ -18,6 +18,7 @@ SQLITE_SCHEMA = [
         reviewed_at TEXT,
         review_decision TEXT,
         application_version TEXT,
+        build_id TEXT,
         git_commit TEXT,
         config_version TEXT,
         final_snapshot_path TEXT,
@@ -25,8 +26,8 @@ SQLITE_SCHEMA = [
         final_pdf_checksum TEXT,
         updated_at TEXT NOT NULL
     )
-    ''',
-    '''
+    """,
+    """
     CREATE TABLE IF NOT EXISTS results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         run_id TEXT NOT NULL,
@@ -43,8 +44,8 @@ SQLITE_SCHEMA = [
         metadata_json TEXT,
         FOREIGN KEY (run_id) REFERENCES runs(run_id)
     )
-    ''',
-    '''
+    """,
+    """
     CREATE TABLE IF NOT EXISTS evidence (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         run_id TEXT NOT NULL,
@@ -59,8 +60,8 @@ SQLITE_SCHEMA = [
         FOREIGN KEY (run_id) REFERENCES runs(run_id),
         FOREIGN KEY (result_id) REFERENCES results(id)
     )
-    ''',
-    '''
+    """,
+    """
     CREATE TABLE IF NOT EXISTS review_notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         run_id TEXT NOT NULL,
@@ -75,14 +76,14 @@ SQLITE_SCHEMA = [
             -- The repository performs deterministic upsert lookup for note scopes.
             -- SQLite does not allow expression-based table UNIQUE constraints here.
     )
-    ''',
-    '''
+    """,
+    """
     CREATE TABLE IF NOT EXISTS run_lock (
         name TEXT PRIMARY KEY,
         active_run_id TEXT,
         updated_at TEXT NOT NULL
     )
-    ''',
+    """,
     "CREATE INDEX IF NOT EXISTS idx_runs_state ON runs(state)",
     "CREATE INDEX IF NOT EXISTS idx_results_run_module_site ON results(run_id, module, site)",
     "CREATE INDEX IF NOT EXISTS idx_notes_run_scope ON review_notes(run_id, scope)",
@@ -107,6 +108,7 @@ POSTGRES_SCHEMA = [
         reviewed_at TIMESTAMPTZ,
         review_decision TEXT,
         application_version TEXT,
+        build_id TEXT,
         git_commit TEXT,
         config_version TEXT,
         final_snapshot_path TEXT,

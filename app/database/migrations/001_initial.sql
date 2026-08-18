@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS runs (
     reviewed_at TIMESTAMPTZ,
     review_decision TEXT,
     application_version TEXT,
+    build_id TEXT,
     git_commit TEXT,
     config_version TEXT,
     final_snapshot_path TEXT,

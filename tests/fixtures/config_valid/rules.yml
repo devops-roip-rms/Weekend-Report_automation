@@ -47,33 +47,42 @@
     {
       "enabled": true,
       "module": "portainer",
-      "field": "expected_replicas",
+      "fields": [
+        "service_presence",
+        "desired_replicas",
+        "running_replicas",
+        "image"
+      ],
       "sites": [
         "site1",
         "site2"
       ],
-      "mismatch_status": "WARNING"
+      "mismatch_status": "WARNING",
+      "allowed_differences": []
     }
   ],
-  "database_exit_code_contract": {
-    "0": "PASS",
-    "1": "FAIL",
-    "2": "WARNING"
-  },
-  "database_fixture_actual": {
-    "sites": {
-      "site1": {
-        "exit_code": 0,
-        "stdout": "ok",
-        "stderr": "",
-        "target": "fixture-db"
-      },
-      "site2": {
-        "exit_code": 0,
-        "stdout": "ok",
-        "stderr": "",
-        "target": "fixture-db"
-      }
+  "review": {
+    "general_notes_enabled": true,
+    "general_note_required": false,
+    "required_module_notes": [
+      "portainer"
+    ],
+    "result_note_required_statuses": [
+      "MANUAL_REVIEW"
+    ],
+    "manual_review_acknowledgment_required": true,
+    "recording_cleanup_acknowledgment_required": true,
+    "reject_allowed": true,
+    "approval_status_policy": {
+      "WARNING": "ALLOW",
+      "FAIL": "BLOCK",
+      "ERROR": "BLOCK",
+      "SKIPPED": "BLOCK",
+      "MANUAL_REVIEW": "REQUIRE_NOTE"
     }
+  },
+  "recovery": {
+    "heartbeat_timeout_seconds": 900,
+    "operator_instructions": "Fixture recovery requires manual cleanup verification; never replay Recording start/stop."
   }
 }

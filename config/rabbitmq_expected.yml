@@ -1,4 +1,5 @@
 {
+  "collection_mode": "live",
   "connections": {
     "site1": {
       "url_env": "RABBITMQ_SITE1_URL",
@@ -17,88 +18,65 @@
       "retry": "<TBD>"
     }
   },
+  "defaults": {
+    "vhost": {
+      "required": true
+    },
+    "queue": {
+      "required": true,
+      "durable": "<TBD>",
+      "auto_delete": "<TBD>",
+      "exclusive": "<TBD>",
+      "min_consumers": "<TBD>",
+      "warning_messages": "<TBD>",
+      "critical_messages": "<TBD>"
+    },
+    "exchange": {
+      "required": true,
+      "durable": "<TBD>",
+      "auto_delete": "<TBD>"
+    },
+    "binding": {
+      "required": true
+    }
+  },
+  "topology": {
+    "vhosts": {
+      "<TBD>": {
+        "name": "<TBD>"
+      }
+    },
+    "queues": {
+      "<TBD>": {
+        "vhost": "<TBD>",
+        "name": "<TBD>"
+      }
+    },
+    "exchanges": {
+      "<TBD>": {
+        "vhost": "<TBD>",
+        "name": "<TBD>",
+        "type": "<TBD>"
+      }
+    },
+    "bindings": {
+      "<TBD>": {
+        "vhost": "<TBD>",
+        "source": "<TBD>",
+        "destination_type": "<TBD>",
+        "destination": "<TBD>",
+        "routing_key": "<TBD>"
+      }
+    }
+  },
   "sites": {
     "site1": {
-      "vhosts": [
-        {
-          "name": "<TBD>",
-          "required": "<TBD>"
-        }
-      ],
-      "queues": [
-        {
-          "vhost": "<TBD>",
-          "name": "<TBD>",
-          "durable": "<TBD>",
-          "auto_delete": "<TBD>",
-          "exclusive": "<TBD>",
-          "min_consumers": "<TBD>",
-          "warning_messages": "<TBD>",
-          "critical_messages": "<TBD>",
-          "required": "<TBD>"
-        }
-      ],
-      "exchanges": [
-        {
-          "vhost": "<TBD>",
-          "name": "<TBD>",
-          "type": "<TBD>",
-          "durable": "<TBD>",
-          "auto_delete": "<TBD>",
-          "required": "<TBD>"
-        }
-      ],
-      "bindings": [
-        {
-          "vhost": "<TBD>",
-          "source": "<TBD>",
-          "destination_type": "<TBD>",
-          "destination": "<TBD>",
-          "routing_key": "<TBD>",
-          "required": "<TBD>"
-        }
-      ]
+      "topology": "common",
+      "overrides": {}
     },
     "site2": {
-      "vhosts": [
-        {
-          "name": "<TBD>",
-          "required": "<TBD>"
-        }
-      ],
-      "queues": [
-        {
-          "vhost": "<TBD>",
-          "name": "<TBD>",
-          "durable": "<TBD>",
-          "auto_delete": "<TBD>",
-          "exclusive": "<TBD>",
-          "min_consumers": "<TBD>",
-          "warning_messages": "<TBD>",
-          "critical_messages": "<TBD>",
-          "required": "<TBD>"
-        }
-      ],
-      "exchanges": [
-        {
-          "vhost": "<TBD>",
-          "name": "<TBD>",
-          "type": "<TBD>",
-          "durable": "<TBD>",
-          "auto_delete": "<TBD>",
-          "required": "<TBD>"
-        }
-      ],
-      "bindings": [
-        {
-          "vhost": "<TBD>",
-          "source": "<TBD>",
-          "destination_type": "<TBD>",
-          "destination": "<TBD>",
-          "routing_key": "<TBD>",
-          "required": "<TBD>"
-        }
-      ]
+      "topology": "common",
+      "overrides": {}
     }
   }
 }

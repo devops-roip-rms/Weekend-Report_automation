@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_evidence, routes_health, routes_notes, routes_reports, routes_review, routes_runs
+from app.api import (
+    routes_evidence,
+    routes_health,
+    routes_notes,
+    routes_reports,
+    routes_review,
+    routes_runs,
+)
 
 
 def create_app() -> FastAPI:

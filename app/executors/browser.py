@@ -2,8 +2,12 @@ from __future__ import annotations
 
 
 class RecordingBrowserDriver:
-    def create_synthetic_device(self, *_args, **_kwargs):
-        raise RuntimeError("Recording browser automation is blocked until safe selectors and values are approved")
+    def start_existing_device_recording(self, *_args, **_kwargs):
+        raise RuntimeError(
+            "Recording start is blocked until existing-device action contracts are approved"
+        )
 
-    def delete_synthetic_device(self, *_args, **_kwargs):
-        raise RuntimeError("Recording browser cleanup is blocked until safe selectors and values are approved")
+    def stop_existing_device_recording(self, *_args, **_kwargs):
+        raise RuntimeError(
+            "Recording stop is blocked until existing-device action contracts are approved"
+        )

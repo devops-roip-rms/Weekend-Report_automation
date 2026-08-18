@@ -15,4 +15,7 @@ class SSHResult:
 
 class SSHExecutor:
     def run(self, host: str, command: str, timeout: int) -> SSHResult:
-        raise RuntimeError("SSH execution is blocked until server inventory, credentials, and host-key policy are approved")
+        raise RuntimeError(
+            "SSH execution is blocked until server inventory, credentials, "
+            "and host-key policy are approved"
+        )

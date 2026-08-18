@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: weekend_report
       POSTGRES_USER: weekend_report
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-<TBD>}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required from deploy/docker/.env, Docker secrets, or an approved secret mechanism}
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +24,24 @@ services:
       context: ../..
     image: weekend-report:local
     command: ["uvicorn", "app.web.main:app", "--host", "0.0.0.0", "--port", "8080"]
-    env_file: ./env.example
+    environment: &app_environment
+      WEEKEND_REPORT_APP_VERSION: ${WEEKEND_REPORT_APP_VERSION:?WEEKEND_REPORT_APP_VERSION is required for portable traceability}
+      WEEKEND_REPORT_BUILD_ID: ${WEEKEND_REPORT_BUILD_ID:?WEEKEND_REPORT_BUILD_ID is required for portable traceability}
+      WEEKEND_REPORT_CONFIG_DIR: /app/config
+      WEEKEND_REPORT_EVIDENCE_ROOT: /app/runs
+      WEEKEND_REPORT_DATABASE_URL: postgresql://weekend_report:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required from deploy/docker/.env, Docker secrets, or an approved secret mechanism}@postgres:5432/weekend_report
+      WEEKEND_REPORT_AUTH_MODE: ${WEEKEND_REPORT_AUTH_MODE:-production}
+      WEEKEND_REPORT_AUTH_PROVIDER: ${WEEKEND_REPORT_AUTH_PROVIDER:?WEEKEND_REPORT_AUTH_PROVIDER is required in production}
+      WEEKEND_REPORT_AUTH_TRUSTED_HEADER: ${WEEKEND_REPORT_AUTH_TRUSTED_HEADER:?WEEKEND_REPORT_AUTH_TRUSTED_HEADER is required for trusted_header production auth}
+      WEEKEND_REPORT_AUTHORIZED_REVIEWERS: ${WEEKEND_REPORT_AUTHORIZED_REVIEWERS:?WEEKEND_REPORT_AUTHORIZED_REVIEWERS is required for production access}
+      WEEKEND_REPORT_CSRF_SIGNING_KEY: ${WEEKEND_REPORT_CSRF_SIGNING_KEY:?WEEKEND_REPORT_CSRF_SIGNING_KEY is required for production browser mutations}
+      WEEKEND_REPORT_CSRF_TTL_SECONDS: ${WEEKEND_REPORT_CSRF_TTL_SECONDS:-3600}
+      PORTAINER_SITE1_URL: ${PORTAINER_SITE1_URL:-}
+      PORTAINER_SITE1_TOKEN: ${PORTAINER_SITE1_TOKEN:-}
+      PORTAINER_SITE1_CA_FILE: ${PORTAINER_SITE1_CA_FILE:-}
+      PORTAINER_SITE2_URL: ${PORTAINER_SITE2_URL:-}
+      PORTAINER_SITE2_TOKEN: ${PORTAINER_SITE2_TOKEN:-}
+      PORTAINER_SITE2_CA_FILE: ${PORTAINER_SITE2_CA_FILE:-}
     ports:
       - "8080:8080"
     volumes:
@@ -39,7 +56,7 @@ services:
   worker:
     image: weekend-report:local
     command: ["python", "-m", "app.worker.main"]
-    env_file: ./env.example
+    environment: *app_environment
     volumes:
       - evidence:/app/runs
     depends_on:

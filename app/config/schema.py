@@ -8,6 +8,7 @@ REQUIRED_FILES = [
     "rabbitmq_expected.yml",
     "doctor.yml",
     "recording.yml",
+    "database.yml",
     "splunk_dashboards.yml",
 ]
 

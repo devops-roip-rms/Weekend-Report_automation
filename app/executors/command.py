@@ -19,5 +19,9 @@ class CommandExecutor:
         import time
 
         start = time.monotonic()
-        proc = subprocess.run(command, cwd=cwd, timeout=timeout, capture_output=True, text=True, check=False)
-        return CommandResult(command, proc.returncode, proc.stdout, proc.stderr, time.monotonic() - start, timeout)
+        proc = subprocess.run(
+            command, cwd=cwd, timeout=timeout, capture_output=True, text=True, check=False
+        )
+        return CommandResult(
+            command, proc.returncode, proc.stdout, proc.stderr, time.monotonic() - start, timeout
+        )

@@ -113,6 +113,7 @@ class RunRecord:
     reviewed_at: str | None = None
     review_decision: str | None = None
     application_version: str | None = None
+    build_id: str | None = None
     git_commit: str | None = None
     config_version: str | None = None
     final_snapshot_path: str | None = None

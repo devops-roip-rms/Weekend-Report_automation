@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
-from fastapi import Header
+from fastapi import Request
 
+from app.auth import require_csrf_for_mutation, resolve_reviewer
 from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.evidence.manager import EvidenceManager
-
 
 _repo: Repository | None = None
 
@@ -29,5 +28,11 @@ def get_evidence_manager() -> EvidenceManager:
     return EvidenceManager(os.getenv("WEEKEND_REPORT_EVIDENCE_ROOT", "runs"))
 
 
-def get_reviewer(x_reviewer: str | None = Header(default=None)) -> str:
-    return x_reviewer or os.getenv("WEEKEND_REPORT_DEV_REVIEWER", "anonymous")
+def get_reviewer(request: Request) -> str:
+    return resolve_reviewer(request)
+
+
+def get_mutating_reviewer(request: Request) -> str:
+    reviewer = resolve_reviewer(request, mutating=True)
+    require_csrf_for_mutation(request, reviewer)
+    return reviewer

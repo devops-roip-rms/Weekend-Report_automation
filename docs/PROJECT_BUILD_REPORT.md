@@ -1,274 +1,163 @@
 # Project Build Report
 
-Generated: 2026-08-11
+Date: 2026-08-18
 
-## Source Documents Read
+Scope: core framework hardening, operational-model correction, and professional UI/UX redesign.
+This pass did not start production integrations, did not execute real Recording state-changing
+calls, and did not perform Git operations.
 
-Authoritative source order used:
+## What Changed
 
-1. `Weekend_Report_Final_Automation_Specification_FINAL_UPDATED.md`
-2. `CODEX_Weekend_Report_Complete_Project_Implementation_Guide_FINAL.md`
-3. `Weekend_Report_All_Validation_Configuration_Worksheet_FINAL_UPDATED.md`
+- Added shared expected-configuration resolution in `app/config/effective.py` for Portainer common
+  service inventory/defaults/per-site overrides and RabbitMQ common topology/defaults/per-site
+  overrides.
+- Refactored Portainer config templates and fixtures to remove duplicated per-site service lists.
+  Required services default to `true`; optional services must be explicit.
+- Updated Portainer task-state semantics so `failed`, `rejected`, `restarting`, and `starting` are
+  distinct. `starting` is policy-controlled and is not treated as permanently unhealthy by default.
+- Refactored RabbitMQ config templates and fixtures to use common vhost/queue/exchange/binding
+  topology with overrides and explicit optional topology behavior.
+- Replaced the Recording synthetic create/delete model with an existing-device start/stop workflow:
+  baseline WebApp/backend counts, select existing non-recording device, start same device, verify
+  increments, stop same device, verify restoration, cleanup/recovery.
+- Added structured Recording subresults for device selection, baselines, start/stop actions,
+  WebApp/backend increments/restoration, cleanup, and module status.
+- Added `config/database.yml`, `tests/fixtures/config_valid/database.yml`, and
+  `app/executors/database_sync_test.py` as an adapter boundary for the owner-supplied existing
+  database sync function. The temp-table algorithm is not rewritten in this project.
+- Replaced database exit-code validation with structured create/replicate/delete/replicate/cleanup
+  result validation.
+- Added Chrony parser boundary for `chronyc tracking` and `chronyc sources`, plus NFS mount source,
+  existence, usability, and utilization validation.
+- Kept fixture mode explicit and blocked live collectors when required environment contracts are
+  unknown. No silent live-to-fixture fallback was added.
+- Preserved review/evidence/finalization hardening from earlier work: additive reviewer notes,
+  ownership validation, frozen snapshots, final PDF from the snapshot only, production auth boundary,
+  CSRF protection, row-lock/atomic run semantics, and stale-worker recovery.
+- Redesigned the FastAPI/Jinja web UI into a consistent operations dashboard shell with a top
+  header, persistent module navigation, responsive content area, cards/panels, professional status
+  badges, and clear primary/secondary actions.
+- Rebuilt the run overview around summary-first information: RUN_ID, run state, automation status,
+  site summaries, module summaries, PASS/WARNING/FAIL/ERROR/MANUAL_REVIEW counts, important
+  findings, timestamps, current-module information, and reviewer/final-decision metadata.
+- Replaced raw wide module tables with readable result cards showing Check/Status/Expected/Actual/
+  Message, evidence links, reviewer notes, and expandable technical details.
+- Added module-specific UI presentations: two-site Portainer service comparison, RabbitMQ Queues/
+  Exchanges/Bindings/Node Alarms sections, existing-device Recording workflow steps, and
+  server-oriented Infrastructure panels.
+- Reworked Splunk review into dashboard cards with `OPEN ALL DASHBOARDS`, per-dashboard reviewer
+  notes, save/reload controls, and persisted-note display.
+- Reworked the Review page into summary-first grouped panels for findings, module notes, result
+  notes, Splunk notes, general notes, and final decision. Final confirmation now has visually
+  distinct APPROVE/REJECT choices, an explicit second confirmation step, and a clear immutable
+  findings warning.
+- Replaced browser-native alert feedback with accessible inline status and toast messages in
+  `app/web/static/app.js`.
+- Added UI regression tests for summary-first rendering, specialized module layouts, Splunk cards,
+  explicit final confirmation, no raw tables, and no `alert(` usage.
 
-Additional updated context read:
+## Current Project Structure
 
-- `# Basic Initial Architecture - weekend report.md`
+- `app/api/`: FastAPI routes for runs, notes, review, reports, evidence, and health.
+- `app/auth.py`: development vs production reviewer identity and CSRF boundary.
+- `app/collectors/`: fixture/live collection boundaries for modules.
+- `app/config/`: config loading, schema constants, effective common-config resolution, preflight.
+- `app/database/`: migrations, models, repository, run locks, notes, evidence metadata.
+- `app/evidence/`: safe evidence paths, checksum writes, metadata models.
+- `app/executors/`: command/SSH/browser/database adapter boundaries.
+- `app/orchestrator/`: execution plan, worker runner, aggregation, run context, locks.
+- `app/reporting/`: frozen HTML/snapshot rendering and final multi-page PDF generation.
+- `app/review/`: note ownership and finalization readiness policy.
+- `app/validators/`: module validators and site parity validator.
+- `app/web/`: HTML templates, shared Jinja UI macros, CSS, and browser JavaScript for review/
+  finalization.
+- `app/worker/`: worker loop, heartbeat, stale-run recovery.
+- `config/`: production templates with controlled placeholders.
+- `deploy/docker/`: Docker Compose files and deployment notes.
+- `docs/`: architecture, configuration, validation, recovery, deployment, and this report.
+- `scripts/`: config validation and local smoke helpers.
+- `tests/fixtures/config_valid/`: safe fixture configuration.
+- `tests/unit/`, `tests/integration/`: local quality suite.
 
-The source documents in the parent workspace were not modified.
+## Tests And Checks
 
-## Project Structure
+- PASS: `python scripts/validate_config.py --config tests/fixtures/config_valid`.
+- PASS: `python scripts/validate_config.py --config config --expect-invalid`.
+  - Production templates remain intentionally invalid until required `<TBD>` and `<TO_VERIFY>`
+    values are supplied.
+- PASS: `python -m unittest discover -s tests -v`.
+  - Result: 75 tests passed, 2 skipped.
+  - Skipped: PostgreSQL concurrency tests because `WEEKEND_REPORT_TEST_POSTGRES_URL` is not set.
+- PASS: `python -m ruff check . --no-cache`.
+- PASS: `python -m mypy app tests`.
+- PASS: `pip-audit -r requirements.txt --cache-dir <writable-cache>`.
+  - Result: no known vulnerabilities found.
+  - Required approved network/index access after the default cache directory was not writable.
+- PASS: Headless Edge visual inspection of `/`, run overview, Portainer, DOCTOR, RabbitMQ,
+  Recording, Infrastructure, Database, Splunk, Review, Review final-confirmation area, and mobile
+  Overview/Review screenshots.
+  - Corrected two responsive metric-grid issues found during visual inspection.
+  - The in-app browser connector failed during setup with a missing kernel-assets path, so local
+    headless Edge screenshots were used for visual QA.
 
-```text
-weekend-report/
-  .dockerignore
-  .env.example
-  .gitignore
-  .gitlab-ci.yml
-  AGENTS.md
-  Dockerfile
-  README.md
-  pyproject.toml
-  requirements.txt
-  app/
-    __init__.py
-    api/
-      __init__.py
-      dependencies.py
-      routes_evidence.py
-      routes_health.py
-      routes_notes.py
-      routes_reports.py
-      routes_review.py
-      routes_runs.py
-    collectors/
-      __init__.py
-      base.py
-      database.py
-      doctor.py
-      infrastructure.py
-      portainer.py
-      rabbitmq.py
-      recording.py
-    config/
-      __init__.py
-      loader.py
-      schema.py
-      validation.py
-    database/
-      __init__.py
-      migrations/001_initial.sql
-      models.py
-      repository.py
-      session.py
-    domain.py
-    evidence/
-      __init__.py
-      checksum.py
-      manager.py
-      models.py
-      paths.py
-    executors/
-      __init__.py
-      browser.py
-      command.py
-      http.py
-      ssh.py
-    orchestrator/
-      __init__.py
-      aggregation.py
-      execution_plan.py
-      lock.py
-      run_context.py
-      runner.py
-    reporting/
-      __init__.py
-      final_pdf.py
-      html.py
-      snapshot.py
-    time_utils.py
-    validators/
-      __init__.py
-      base.py
-      database.py
-      doctor.py
-      engine.py
-      infrastructure.py
-      portainer.py
-      rabbitmq.py
-      recording.py
-      site_parity.py
-    web/
-      __init__.py
-      main.py
-      static/app.css
-      templates/
-        base.html
-        error.html
-        index.html
-        module.html
-        review.html
-        run.html
-        splunk.html
-    worker/
-      __init__.py
-      heartbeat.py
-      main.py
-  config/
-    doctor.yml
-    portainer_expected.yml
-    rabbitmq_expected.yml
-    recording.yml
-    rules.yml
-    servers.yml
-    sites.yml
-    splunk_dashboards.yml
-  deploy/docker/
-    README.md
-    compose.prod.yml
-    compose.yml
-    env.example
-  docs/
-    ARCHITECTURE.md
-    CONFIGURATION_GUIDE.md
-    ENVIRONMENT_INPUTS_REQUIRED.md
-    PROJECT_BUILD_REPORT.md
-    VALIDATION_CATALOG.md
-  scripts/
-    db/README.md
-    migrate.py
-    smoke_local.py
-    validate_config.py
-  tests/
-    __init__.py
-    contract/__init__.py
-    fixtures/config_valid/
-      doctor.yml
-      portainer_expected.yml
-      rabbitmq_expected.yml
-      recording.yml
-      rules.yml
-      servers.yml
-      sites.yml
-      splunk_dashboards.yml
-    integration/
-      __init__.py
-      test_run_workflow.py
-    unit/
-      __init__.py
-      test_aggregation.py
-      test_config_validation.py
-      test_evidence.py
-      test_recording_safety.py
-      test_validators.py
-```
+## Docker Results
 
-## What Was Implemented
+- PASS: `docker compose -f deploy/docker/compose.yml config` with disposable validation values.
+- PASS: `docker build -t weekend-report:ui-validation .` after approved Docker daemon access.
+- PASS: safe Compose smoke with `postgres` and `web` only, no worker, using `--build` against the
+  final source state.
+  - `GET http://localhost:8080/healthz` returned `{"status":"ok"}`.
+  - `docker compose ... ps` showed PostgreSQL healthy and web up.
+  - Teardown succeeded with `docker compose -p weekend-report-ui-smoke ... down -v`.
+  - Follow-up `docker ps` showed no `weekend-report-ui-smoke` containers.
 
-- Local Git repository initialized inside `weekend-report/`.
-- FastAPI web/API foundation with health, run creation, review, notes, evidence, and finalization routes.
-- Persistent worker entrypoint with atomic claim path and heartbeat updates.
-- Domain enums and typed dataclasses for run states, check statuses, note scopes, results, evidence, review notes, summaries, dashboards, and worker heartbeat.
-- SQLite local repository adapter, PostgreSQL psycopg adapter path, and PostgreSQL target migration file for the required tables: `runs`, `results`, `evidence`, `review_notes`, and `run_lock`.
-- Transactional run lock, duplicate active-run rejection, and worker single-claim behavior.
-- Configuration loader and preflight validation for required files, placeholders, invalid enums, duplicate IDs, site references, dashboard IDs, and threshold ordering.
-- Production YAML templates using controlled placeholders only.
-- Safe fixture configuration under `tests/fixtures/config_valid` for local tests without production connections.
-- Collector/validator separation for Portainer, DOCTOR, RabbitMQ, Recording, Infrastructure, and Database.
-- Portainer expected-state validation and separate parity validator so parity cannot mask failed site health.
-- RabbitMQ topology and backlog validation against expected state.
-- Infrastructure filesystem and chrony parsing/validation from fixture command output.
-- Recording safety model with exact identity validation and cleanup status separate from functional status.
-- Database script adapter mapping by documented exit-code contract.
-- Evidence manager with generated paths, sanitization, traversal rejection, atomic writes, and SHA-256 checksums.
-- HTML review pages and per-module/Splunk review surfaces.
-- Module, result, Splunk dashboard, and general reviewer note persistence.
-- Frozen review snapshot generation with note-completeness invariant.
-- One final PDF generated only during finalization, rendered from frozen snapshot content.
-- Finalization support for APPROVE and REJECT, with PDF failure preserving the frozen snapshot for retry.
-- Dockerfile, Compose files, env examples, and optional future `.gitlab-ci.yml`.
-- Documentation: architecture, configuration guide, validation catalog, environment inputs, and this build report.
+## Remaining Controlled Placeholders
 
-## Tests Executed
+Across `config/`, `.env.example`, and `deploy/docker/env.example`:
 
-| Gate | Command | Result |
-|---|---|---|
-| Fixture config validation | `python scripts\validate_config.py --config tests\fixtures\config_valid` | PASS |
-| Production-template invalid preflight | `python scripts\validate_config.py --config config --expect-invalid` | PASS; default templates are rejected as expected because required placeholders remain |
-| Python compile check | `python -m compileall -q app scripts tests` | PASS |
-| Unit/integration tests | `python -m unittest discover -s tests` | PASS, 15 tests |
-| Safe local smoke | `python scripts\smoke_local.py` | PASS |
-| Ruff lint | `python -m ruff check .` | BLOCKED; `ruff` not installed in host Python |
-| Mypy type check | `python -m mypy app scripts` | BLOCKED; `mypy` not installed in host Python |
-| Dependency audit | `python -m pip_audit` | BLOCKED; `pip_audit` not installed in host Python |
+- `<TBD>`: 234
+- `<TO_VERIFY>`: 11
 
-## Docker Validation / Build Results
+Selected production templates:
 
-| Gate | Command | Result |
-|---|---|---|
-| Docker version | `docker --version; docker compose version` | PASS; Docker 29.1.2 and Compose v2.40.3 detected |
-| Compose config | `docker compose -f deploy/docker/compose.yml config` | PASS with local `DOCKER_CONFIG`; compose model renders successfully |
-| Docker build | `docker build -t weekend-report:local .` | BLOCKED by host Docker daemon permissions: `open //./pipe/docker_engine: Access is denied` |
-| Compose smoke | `docker compose -f deploy/docker/compose.yml up --no-start` | BLOCKED by same Docker daemon pipe permission |
+- `config/portainer_expected.yml`: 18 `<TBD>`, 8 `<TO_VERIFY>`
+- `config/rabbitmq_expected.yml`: 29 `<TBD>`, 0 `<TO_VERIFY>`
+- `config/recording.yml`: 20 `<TBD>`, 2 `<TO_VERIFY>`
+- `config/database.yml`: 7 `<TBD>`, 1 `<TO_VERIFY>`
 
-The Dockerfile/Compose definitions are present and syntactically validated, but image build and runtime smoke require elevated Docker daemon access on this Windows host.
+## Still Awaiting Environment Information
 
-## Remaining `<TBD>` Values
-
-Total remaining `<TBD>` values in production templates and env examples: **187**.
-
-Per file:
-
-| File | Count |
-|---|---:|
-| `.env.example` | 7 |
-| `config/doctor.yml` | 7 |
-| `config/portainer_expected.yml` | 22 |
-| `config/rabbitmq_expected.yml` | 52 |
-| `config/recording.yml` | 18 |
-| `config/rules.yml` | 19 |
-| `config/servers.yml` | 45 |
-| `config/sites.yml` | 6 |
-| `config/splunk_dashboards.yml` | 7 |
-| `deploy/docker/compose.yml` | 1 |
-| `deploy/docker/env.example` | 3 |
-
-## Remaining `<TO_VERIFY>` Values
-
-None currently present.
-
-## Integrations Awaiting Real Environment Information
-
-- Portainer: URLs, API contract, auth, endpoint IDs, expected services, replicas, health/image policy, parity fields.
-- DOCTOR: manual/API mode, API contract if used, manual review URL and instructions.
-- RabbitMQ: Management API URLs/auth, vhosts, queues, exchanges, bindings, thresholds, alarm and parity policy.
-- Recording: WebApp01/WebApp02 URLs, auth, selectors/API, safe synthetic values, create/delete/cleanup workflow, backend source.
-- Infrastructure: server inventory, SSH credentials/host-key policy, approved commands, filesystems, NFS mappings, timezone/NTP/offset limits.
-- Database: verified script path, arguments, environment, timeout, exit-code/stdout/stderr contract.
-- Splunk: dashboard IDs, names, URLs, review order, note requirements, human review instructions.
-- Authentication/authorization: organization-approved reviewer identity and authorization source.
-- Evidence storage: approved persistent path/NFS/object store, retention, backups, permissions.
-- Archive/email: enablement, destinations, recipients, checksum/failure behavior.
-- Docker production secrets: database password and runtime secret injection.
+- Portainer URLs, auth method, tokens/secret mechanism, TLS policy, endpoint IDs, API contract,
+  service inventory, expected replicas/health/images/state, task-state policy, and parity rules.
+- RabbitMQ Management API URLs, users/passwords, TLS/retry policy, common topology, per-site
+  overrides, thresholds, and alarm policy.
+- Recording WebApp/backend query/action contracts, auth, polling values, cleanup verification,
+  no-eligible-device policy, and explicit approval for any state-changing start/stop calls.
+- Database approved existing sync function binding, source/replica identifiers, temp table
+  definition, cleanup policy, timeouts, and secret delivery.
+- Infrastructure SSH targets, approved read-only commands, host-key policy, filesystem/NFS/Chrony
+  expected values and thresholds.
+- DOCTOR API/manual source, Splunk dashboard definitions, production auth provider, reviewer
+  authorization list/group, CSRF signing key delivery, evidence storage/retention, archive/email
+  policies, and stale-worker timeout.
 
 ## Known Limitations
 
-- Production external collectors are guarded/stubbed until approved environment values are supplied.
-- PostgreSQL support is implemented through the optional psycopg path and migration schema, but could not be exercised in Docker during this session because Docker daemon access is blocked on the host.
-- Docker build and Compose smoke could not run in this session because Docker daemon pipe access is denied on the host.
-- Ruff, mypy, and pip-audit could not run because those tools are not installed in the host Python environment; they are pinned in `requirements.txt` and wired into `.gitlab-ci.yml`.
-- The default production `config/` directory is intentionally invalid until placeholders are resolved.
+- No real production systems were contacted.
+- Recording live execution is intentionally blocked until the existing-device start/stop contracts
+  are supplied and approved.
+- Database live execution raises a clear adapter-not-provided error until the owner inserts the
+  approved existing sync function behind `app/executors/database_sync_test.py`.
+- PostgreSQL concurrency tests are not verified without a disposable PostgreSQL URL.
+- `pip-audit` is not verified because network audit access was blocked.
+- `.env.example` and `deploy/docker/env.example` remain templates only. They must not be used as
+  runtime secret files.
 
-## Exact Information Needed Next
+## Exact Next Inputs Needed
 
-1. Confirm site IDs, display names, and roles for Site 1 and Site 2.
-2. Fill module required/optional policy and aggregation semantics in `config/rules.yml`.
-3. Provide Portainer API/auth details and expected services/replicas/images/health rules.
-4. Provide DOCTOR mode and either API contract or manual review URL/instructions.
-5. Provide RabbitMQ topology, thresholds, alarms, and parity policy.
-6. Provide Recording safe synthetic create/delete/cleanup definitions and approve controlled non-production validation before any real run.
-7. Provide server inventory, SSH policy, filesystem/NFS/Chrony expected state and thresholds.
-8. Provide the existing verified DB script contract and evidence semantics.
-9. Provide Splunk dashboard IDs, names, URLs, order, and note requirements.
-10. Provide reviewer authentication/authorization model.
-11. Provide persistent evidence storage, retention, backup, archive, and email policy.
-12. Provide Docker production secret values through an approved non-Git mechanism.
+1. Approved production auth provider and reviewer authorization source.
+2. Real non-committed runtime secret delivery mechanism.
+3. Completed Portainer, RabbitMQ, Recording, Database, Infrastructure, DOCTOR, Splunk, recovery,
+   evidence, archive, and email values listed in `docs/ENVIRONMENT_INPUTS_REQUIRED.md`.
+4. Disposable PostgreSQL URL for concurrency tests, if those must be verified locally.
+5. Approval to run `pip-audit` with network access, or an offline vulnerability database/source.
