@@ -134,3 +134,27 @@ For rollback, restore the previous folder/image plus matching `.env`, configurat
 ## Future GitLab Onboarding
 
 GitLab is optional. If the folder is imported later, keep CI aligned with the same local commands in this document. Do not schedule Weekend Report execution through GitLab unless a separate approved design is created. Git commit SHA may be recorded as optional additional traceability after Git metadata exists, but `application_version`, `build_id`, and `configuration_hash` remain mandatory.
+
+## Verified CI Image Artifacts
+
+GitHub Actions and GitLab CI/CD can create a smoke-tested portable image artifact after all pre-image quality gates pass. The artifact contains a compressed `docker save` archive, its SHA-256 checksum, and the Docker image ID used by the smoke test.
+
+Preferred transfer flow when CI creates the image:
+
+```text
+quality gates PASS
+  -> image build
+  -> exact-image smoke PASS
+  -> verified image archive + checksum
+  -> external hard disk
+  -> target PC checksum verification
+  -> docker load
+  -> production .env/secrets + approved YAML
+  -> controlled startup/acceptance test
+```
+
+This avoids rebuilding a different image on the target PC when the organizational process allows transfer of the verified image artifact. If organizational policy requires rebuilding on the second PC, run the same local quality gates first and record a new build ID.
+
+GitHub/GitLab registry publication remains optional. The application does not require either registry to run.
+
+See `docs/CI_CD.md` for the exact artifact names, CI variables, and runner prerequisites.

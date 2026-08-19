@@ -56,6 +56,50 @@ calls, and did not perform Git operations.
 - Added UI regression tests for summary-first rendering, specialized module layouts, Splunk cards,
   explicit final confirmation, no raw tables, and no `alert(` usage.
 
+## CI/CD and Verified Image Delivery Pass
+
+A cross-platform CI/image-delivery layer was added without changing the manual-run application
+runtime or enabling production integrations.
+
+Implemented:
+
+- one portable CI command contract in `scripts/ci.py`;
+- a dedicated safe fixture E2E in `scripts/ci_e2e.py`;
+- a CI-only exact-image Compose smoke definition in `deploy/docker/compose.ci.yml`;
+- GitHub Actions quality gates plus a separately gated image workflow;
+- GitLab split quality/image CI includes;
+- disposable PostgreSQL 16 concurrency services in both hosted CI definitions;
+- image creation blocked until every pre-image gate succeeds;
+- exact built image smoke-tested before export or optional registry push;
+- verified offline `docker save` archive + SHA-256 artifact generation;
+- optional GHCR/GitLab Container Registry publication with no hardcoded registry credentials;
+- CI configuration regression tests and `docs/CI_CD.md`.
+
+The standard CI pipelines do not contact real Portainer, RabbitMQ, SSH, Database validation,
+DOCTOR, Splunk, or Recording systems. They use fixtures and disposable CI infrastructure only.
+
+Validation performed while preparing this package:
+
+- PASS: complete local `unittest` discovery after CI additions: 82 tests, 2 PostgreSQL tests
+  skipped because this artifact-build environment did not provide a PostgreSQL test URL.
+- PASS: shared integration gate excludes the PostgreSQL-specific module and runs the four normal
+  integration workflow tests.
+- PASS: new safe fixture E2E reaches APPROVED, freezes all saved notes into the snapshot, verifies
+  the notes in the generated PDF, and confirms automated result statuses are unchanged.
+- PASS: GitHub/GitLab/CI Compose YAML files parse with the existing YAML parser and CI regression
+  tests.
+- NOT VERIFIED IN THIS ARTIFACT-BUILD ENVIRONMENT: actual GitHub-hosted Actions execution.
+- NOT VERIFIED IN THIS ARTIFACT-BUILD ENVIRONMENT: actual GitLab Runner execution.
+- BLOCKED IN THIS ARTIFACT-BUILD ENVIRONMENT: Docker CLI/daemon is not installed, so the new
+  built-image smoke could not be executed here. Codex's previous Windows validation results above
+  remain unchanged.
+- BLOCKED IN THIS ARTIFACT-BUILD ENVIRONMENT: Ruff, Mypy, and pip-audit executables are not
+  installed in the provided execution environment. Their CI jobs install `requirements.txt` before
+  running.
+
+Hosted PostgreSQL concurrency is configured as release-blocking and must be observed passing on
+GitHub/GitLab before treating the hosted pipeline as fully verified.
+
 ## Current Project Structure
 
 - `app/api/`: FastAPI routes for runs, notes, review, reports, evidence, and health.
@@ -75,9 +119,9 @@ calls, and did not perform Git operations.
 - `config/`: production templates with controlled placeholders.
 - `deploy/docker/`: Docker Compose files and deployment notes.
 - `docs/`: architecture, configuration, validation, recovery, deployment, and this report.
-- `scripts/`: config validation and local smoke helpers.
+- `scripts/`: config validation, shared CI gates, safe CI E2E, and local smoke helpers.
 - `tests/fixtures/config_valid/`: safe fixture configuration.
-- `tests/unit/`, `tests/integration/`: local quality suite.
+- `tests/unit/`, `tests/integration/`, `tests/contract/`: local and hosted-CI quality suite.
 
 ## Tests And Checks
 
@@ -86,8 +130,8 @@ calls, and did not perform Git operations.
   - Production templates remain intentionally invalid until required `<TBD>` and `<TO_VERIFY>`
     values are supplied.
 - PASS: `python -m unittest discover -s tests -v`.
-  - Result: 75 tests passed, 2 skipped.
-  - Skipped: PostgreSQL concurrency tests because `WEEKEND_REPORT_TEST_POSTGRES_URL` is not set.
+  - Current package result: 82 tests run, 2 skipped.
+  - Skipped locally: PostgreSQL concurrency tests because `WEEKEND_REPORT_TEST_POSTGRES_URL` is not set; both hosted CI definitions provide a disposable PostgreSQL service so these tests become release-blocking there.
 - PASS: `python -m ruff check . --no-cache`.
 - PASS: `python -m mypy app tests`.
 - PASS: `pip-audit -r requirements.txt --cache-dir <writable-cache>`.
@@ -149,7 +193,7 @@ Selected production templates:
 - Database live execution raises a clear adapter-not-provided error until the owner inserts the
   approved existing sync function behind `app/executors/database_sync_test.py`.
 - PostgreSQL concurrency tests are not verified without a disposable PostgreSQL URL.
-- `pip-audit` is not verified because network audit access was blocked.
+- `pip-audit` previously passed in the Codex validation environment; it could not be rerun in the artifact-build environment because package-index/network access is unavailable there.
 - `.env.example` and `deploy/docker/env.example` remain templates only. They must not be used as
   runtime secret files.
 

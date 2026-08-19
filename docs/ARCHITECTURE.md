@@ -120,3 +120,23 @@ Every run, snapshot, and final PDF records:
 `git_commit` is optional future traceability and is `"<NOT_APPLICABLE>"` when Git metadata is unavailable. GitLab is not a runtime dependency.
 
 The default configuration intentionally contains placeholders and blocks real execution.
+
+## Software Delivery / CI Boundary
+
+CI/CD is outside the operational Weekend Report runtime. GitHub Actions and GitLab CI/CD are software-delivery quality systems only; neither platform schedules or starts a real production Weekend Report.
+
+Both platforms reuse `scripts/ci.py` as the command contract. The pipeline boundary is:
+
+```text
+source change
+  -> config validation
+  -> static/test/security/Compose gates
+  -> all gates pass
+  -> image build
+  -> exact-image smoke
+  -> verified offline artifact and optional registry publication
+```
+
+Pre-image gates include a disposable PostgreSQL 16 service so the run-lock/worker-claim concurrency tests are no longer intentionally skipped in CI. The safe E2E uses fixtures only. No production integration credentials are required or permitted by the standard quality pipelines.
+
+Image build/publish is deliberately separated from normal branch validation. See `docs/CI_CD.md` for GitHub/GitLab triggers and runner requirements.

@@ -4,7 +4,7 @@ Manual-run Weekend Report Automation implemented as a Python/FastAPI web app, pe
 
 The repository is intentionally configuration-driven. The default `config/` files are templates with controlled placeholders; they are not production-ready and will fail preflight until real environment values are supplied.
 
-This project is currently developed as a local folder. GitLab/Git may be added later for source control or CI/CD, but Git metadata is not required to build, test, run, deploy, or trace a Weekend Report run.
+This project is currently developed as a local folder. GitHub Actions and GitLab CI/CD definitions are included for later repository hosting, but Git metadata and either hosting platform remain optional for local build, test, runtime, deployment, and Weekend Report traceability.
 
 ## Architecture
 
@@ -36,6 +36,33 @@ non-committed `.env`, Docker secrets, or another approved mechanism. `POSTGRES_P
 `WEEKEND_REPORT_APP_VERSION`, `WEEKEND_REPORT_BUILD_ID`, production auth settings, and
 `WEEKEND_REPORT_CSRF_SIGNING_KEY` must be supplied at runtime and must not be left as
 controlled placeholders.
+
+## CI/CD and Image Creation
+
+The project now has the same release-blocking quality gates for GitHub Actions and GitLab CI/CD.
+The shared commands live in `scripts/ci.py`; platform YAML only orchestrates them. Normal
+branch/merge-request validation stops before Docker image creation if any gate fails. The separate
+image workflow/job builds only after all pre-image gates pass, smoke-tests the exact built image,
+and only then exports or optionally publishes it.
+
+Key files:
+
+```text
+.github/workflows/quality-gates.yml
+.github/workflows/build-image.yml
+.gitlab-ci.yml
+.gitlab/ci/quality.yml
+.gitlab/ci/image.yml
+deploy/docker/compose.ci.yml
+scripts/ci.py
+scripts/ci_e2e.py
+docs/CI_CD.md
+```
+
+The CI fixture E2E and image smoke do not contact real Portainer/RabbitMQ/SSH/DOCTOR/Splunk/
+Recording systems. PostgreSQL concurrency is exercised against a disposable PostgreSQL 16 service
+in both hosted CI definitions. See `docs/CI_CD.md` for triggers, registry controls, runner
+requirements, and local reproduction commands.
 
 ## Configuration
 
