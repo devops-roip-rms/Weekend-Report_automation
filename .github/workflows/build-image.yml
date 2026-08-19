@@ -1,16 +1,11 @@
 name: Build Verified Image
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish_registry:
-        description: "Push the verified image to GHCR after smoke testing"
-        required: false
-        default: false
-        type: boolean
   push:
-    tags:
-      - "v*.*.*"
+    branches:
+      - main
+    paths:
+      - TAG
 
 permissions:
   contents: read
@@ -37,16 +32,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           short_sha="${GITHUB_SHA:0:12}"
 
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-              echo "Tag must be semantic-version style, for example v1.2.3" >&2
-              exit 1
-            fi
-            version="${GITHUB_REF_NAME}"
-          else
-            version="ci-${short_sha}"
+          if [[ ! -f TAG ]]; then
+            echo "TAG file is missing" >&2
+            exit 1
+          fi
+
+          version="$(tr -d '\r\n' < TAG)"
+
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "TAG must contain a semantic version such as v1.0.1" >&2
+            exit 1
           fi
 
           build_id="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -111,16 +109,16 @@ jobs:
         id: publish
         shell: bash
         env:
-          MANUAL_PUBLISH: ${{ inputs.publish_registry || false }}
           TAG_PUBLISH: ${{ vars.WEEKEND_REPORT_PUBLISH_IMAGE || '0' }}
         run: |
           set -euo pipefail
+
           publish=false
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${MANUAL_PUBLISH}" == "true" ]]; then
-            publish=true
-          elif [[ "${GITHUB_REF}" == refs/tags/v* && "${TAG_PUBLISH}" == "1" ]]; then
+
+          if [[ "${TAG_PUBLISH}" == "1" ]]; then
             publish=true
           fi
+
           echo "enabled=${publish}" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to GHCR after smoke passes
@@ -143,12 +141,11 @@ jobs:
           docker tag "$local_image" "$sha_tag"
           docker push "$sha_tag"
 
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            version_tag="${repo}:${{ steps.identity.outputs.version }}"
-            docker tag "$local_image" "$version_tag"
-            docker push "$version_tag"
-            if [[ "${{ vars.WEEKEND_REPORT_PUBLISH_LATEST || '0' }}" == "1" ]]; then
-              docker tag "$local_image" "${repo}:latest"
-              docker push "${repo}:latest"
-            fi
+          version_tag="${repo}:${{ steps.identity.outputs.version }}"
+          docker tag "$local_image" "$version_tag"
+          docker push "$version_tag"
+
+          if [[ "${{ vars.WEEKEND_REPORT_PUBLISH_LATEST || '0' }}" == "1" ]]; then
+            docker tag "$local_image" "${repo}:latest"
+            docker push "${repo}:latest"
           fi

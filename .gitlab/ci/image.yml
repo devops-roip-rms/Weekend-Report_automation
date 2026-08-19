@@ -53,8 +53,8 @@ image-build-smoke-export:
           docker tag "$LOCAL_IMAGE_TAG" "$VERSION_TAG"
           docker push "$VERSION_TAG"
           if [ "${WEEKEND_REPORT_PUBLISH_LATEST:-0}" = "1" ]; then
-            docker tag "$LOCAL_IMAGE_TAG" "${CI_REGISTRY_IMAGE}:latest"
-            docker push "${CI_REGISTRY_IMAGE}:latest"
+              docker tag "$LOCAL_IMAGE_TAG" "${CI_REGISTRY_IMAGE}:latest"
+              docker push "${CI_REGISTRY_IMAGE}:latest"
           fi
         fi
       fi
@@ -66,12 +66,9 @@ image-build-smoke-export:
     expire_in: 14 days
   interruptible: false
   rules:
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - TAG
       when: on_success
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $WEEKEND_REPORT_BUILD_IMAGE_ON_DEFAULT_BRANCH == "1"'
-      when: on_success
-    - if: '$CI_PIPELINE_SOURCE == "web" && $WEEKEND_REPORT_BUILD_IMAGE == "1"'
-      when: on_success
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
+
     - when: never

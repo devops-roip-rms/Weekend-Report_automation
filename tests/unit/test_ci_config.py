@@ -79,21 +79,21 @@ class CIConfigTests(unittest.TestCase):
         self.assertLess(text.index("image-smoke"), text.index("docker save"))
         self.assertLess(text.index("docker save"), text.index("WEEKEND_REPORT_PUBLISH_IMAGE"))
 
-    def test_release_version_preserves_v_prefix(self):
-        github_image_text = self.github_image.read_text(encoding="utf-8")
-        gitlab_image_text = self.gitlab_image.read_text(encoding="utf-8")
+    def test_image_release_is_driven_by_tag_file(self):
+        github_text = self.github_image.read_text(encoding="utf-8")
+        gitlab_text = self.gitlab_image.read_text(encoding="utf-8")
 
-        self.assertNotIn('version="${GITHUB_REF_NAME#v}"', github_image_text)
-        self.assertIn('version="${GITHUB_REF_NAME}"', github_image_text)
+        self.assertIn("paths:", github_text)
+        self.assertIn("- TAG", github_text)
+        self.assertNotIn("GITHUB_REF_NAME", github_text)
+        self.assertNotIn("refs/tags/", github_text)
 
-        self.assertNotIn(
-            'IMAGE_VERSION="${CI_COMMIT_TAG#v}"',
-            gitlab_image_text,
-        )
-        self.assertIn(
-            'IMAGE_VERSION="${CI_COMMIT_TAG}"',
-            gitlab_image_text,
-        )
+        self.assertIn("changes:", gitlab_text)
+        self.assertIn("- TAG", gitlab_text)
+        self.assertNotIn("CI_COMMIT_TAG", gitlab_text)
+
+        self.assertIn("< TAG", github_text)
+        self.assertIn("< TAG", gitlab_text)
 
     def test_ci_compose_uses_exact_image_and_fixture_config(self):
         text = self.ci_compose.read_text(encoding="utf-8")
