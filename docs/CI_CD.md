@@ -1,22 +1,41 @@
 # CI/CD and Verified Image Delivery
 
-## Purpose
+**Documentation synchronized:** 2026-08-19
+
+## 1. Purpose
 
 The project has one shared quality-gate contract and two CI adapters:
 
 ```text
-Local commands
+scripts/ci.py
     |
     +--> GitHub Actions
     |
-    +--> GitLab CI/CD
+    `--> GitLab CI/CD
 ```
 
-GitHub and GitLab call the same `scripts/ci.py` gates. CI does not contain a second copy of the Weekend Report validation logic.
+The CI platforms orchestrate the same local commands. They do not contain a second implementation of Weekend Report business logic.
 
-The operational Weekend Report remains a manual FastAPI action. CI never starts a real production Weekend Report and never performs a real state-changing Recording action.
+The operational Weekend Report remains manually triggered from FastAPI. CI never starts a real production Weekend Report and never performs a real state-changing Recording action.
 
-## Delivery Model
+## 2. Current Python / Container Baseline
+
+```text
+Local Python:        3.14
+GitHub Actions:      3.14
+GitLab quality jobs: 3.14
+Application image:   python:3.14-slim-bookworm
+Validated runtime:   Python 3.14.7
+PostgreSQL CI:       postgres:16-alpine
+```
+
+Important dependency compatibility pins include the Python-3.14-compatible PyYAML/Psycopg packages and the PyYAML typing stubs used by Mypy.
+
+## 3. Two Different Pipelines
+
+### 3.1 Pre-image quality pipeline
+
+Normal code changes run validation only.
 
 ```text
 SOURCE CHANGE
@@ -25,127 +44,248 @@ SOURCE CHANGE
 CONFIG VALIDATION
     |
     v
-QUALITY GATES
-    |-- Ruff
-    |-- Mypy
-    |-- Unit tests
-    |-- Integration tests
-    |-- Contract tests
-    |-- PostgreSQL concurrency tests
-    |-- Safe fixture E2E
-    |-- Dependency audit
-    `-- Docker Compose validation
+RUFF
+MYPY
+UNIT TESTS
+CONTRACT TESTS
+INTEGRATION TESTS
+POSTGRESQL CONCURRENCY
+SAFE FIXTURE E2E
+DEPENDENCY AUDIT
+COMPOSE VALIDATION
     |
     v
-ALL PRE-IMAGE GATES PASS?
-    | no
-    +--> STOP: no image is built
-    |
-   yes
-    v
-BUILD EXACT IMAGE
-    |
-    v
-SMOKE EXACT IMAGE
-    |
-    |-- PostgreSQL starts and becomes healthy
-    |-- web container starts
-    |-- worker container starts
-    |-- /healthz succeeds
-    `-- DB migration/access check succeeds
-    |
-    v
-SMOKE PASS?
-    | no
-    +--> STOP: no verified image artifact or registry release
-    |
-   yes
-    v
-EXPORT VERIFIED IMAGE + SHA256
-    |
-    `--> optional registry push
+QUALITY PASS
 ```
 
-The image is built once. The exact locally tagged image is smoke-tested. Only that already-tested image is exported and, if registry publication is explicitly enabled, tagged/pushed.
+A normal commit **does not build a release image**.
 
-## Shared Local Gates
+### 3.2 TAG-driven image pipeline
 
-Install dependencies first:
+The authoritative release trigger/version source is the root file:
+
+```text
+TAG
+```
+
+Example content:
+
+```text
+v1.0.1
+```
+
+The file contains one semantic-style version value and preserves the leading `v`.
+
+Changing `TAG` on the configured release/default branch starts the image-delivery path.
+
+```text
+TAG changed
+    |
+    v
+pre-image quality gates run again
+    |
+    +--> failure: STOP, no image
+    |
+    `--> success
+            |
+            v
+        BUILD EXACT IMAGE
+            |
+            v
+        SMOKE EXACT IMAGE
+            |
+            +--> failure: STOP, no verified release
+            |
+            `--> success
+                    |
+                    v
+        EXPORT VERIFIED ARCHIVE + SHA-256
+                    |
+                    `--> optional registry push
+```
+
+A Git tag is not required.
+
+Do not reintroduce version derivation from:
+
+```text
+GITHUB_REF_NAME
+CI_COMMIT_TAG
+```
+
+The unit regression test `test_image_release_is_driven_by_tag_file` exists specifically to protect this rule.
+
+## 4. TAG File Contract
+
+Path:
+
+```text
+/TAG
+```
+
+Valid example:
+
+```text
+v1.0.1
+```
+
+Recommended validation expression:
+
+```text
+^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$
+```
+
+Release version usage:
+
+```text
+TAG value       v1.0.1
+OCI version     v1.0.1
+registry tag    :v1.0.1
+archive prefix  weekend-report_v1.0.1_
+```
+
+Normal CI/SHA identities remain separate:
+
+```text
+weekend-report:ci-<short-sha>
+sha-<short-sha>
+```
+
+## 5. Shared Local Gates
+
+Install:
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-Run gates individually:
+Run:
 
 ```powershell
 python scripts/ci.py config
 python scripts/ci.py lint
 python scripts/ci.py typecheck
 python scripts/ci.py unit
-python scripts/ci.py integration
 python scripts/ci.py contract
+python scripts/ci.py integration
 python scripts/ci.py e2e
 python scripts/ci.py audit
 python scripts/ci.py compose-config
 ```
 
-The PostgreSQL concurrency gate is intentionally strict. It requires a disposable PostgreSQL database:
+PostgreSQL concurrency:
 
 ```powershell
-$env:WEEKEND_REPORT_TEST_POSTGRES_URL = "postgresql://USER:PASSWORD@HOST:PORT/weekend_report_ci_test"
+$env:WEEKEND_REPORT_TEST_POSTGRES_URL = "postgresql://USER:PASSWORD@HOST:PORT/weekend_report_test"
 $env:WEEKEND_REPORT_TEST_POSTGRES_DISPOSABLE = "1"
 python scripts/ci.py postgres
 ```
 
-Do not point this gate at a production or shared operational database.
+Only use a disposable/test PostgreSQL database.
 
-## Safe E2E Gate
+## 6. Configuration Gate Semantics
 
-`scripts/ci_e2e.py` uses only fixture configuration, SQLite, temporary evidence storage, and local application code.
+`python scripts/ci.py config` performs two checks:
 
-It covers:
+1. `tests/fixtures/config_valid` must be valid.
+2. production template `config/` must currently be invalid while unresolved controlled placeholders remain.
+
+Therefore a long list of expected production-template errors followed by:
+
+```text
+Configuration invalid as expected
+```
+
+is a successful gate during the configuration-template phase.
+
+Once production configuration is intentionally completed, the release/deployment procedure must also run direct production validation without `--expect-invalid`.
+
+## 7. Safe Fixture E2E
+
+`scripts/ci_e2e.py` does not contact production systems.
+
+It verifies:
 
 ```text
 create run
-  -> claim run
-  -> execute fixture modules
-  -> write evidence
+  -> worker claim
+  -> fixture module execution
+  -> evidence
   -> REVIEW_READY
-  -> save reviewer/module/result/Splunk/general notes
-  -> APPROVE using CI-only fixture approval policy
-  -> freeze snapshot
-  -> generate final PDF
+  -> reviewer notes
+  -> approval
+  -> frozen snapshot
+  -> final PDF
 ```
 
-The gate verifies that automated statuses do not change during review and that every persisted CI review note is represented in the snapshot and generated PDF.
+It verifies:
 
-It does not contact Portainer, RabbitMQ, SSH servers, DOCTOR, Splunk, a production DB-validation target, or Recording systems.
+- automated statuses do not change during review;
+- persisted notes are all present in the frozen snapshot;
+- notes are represented in the final PDF;
+- evidence is produced.
 
-## Built-Image Smoke
+## 8. PostgreSQL Concurrency Gate
 
-The built-image smoke uses `deploy/docker/compose.ci.yml`.
+The concurrency gate is release-blocking.
 
-This Compose file is intentionally separate from the production Compose file. It:
+It requires:
 
-- accepts the exact already-built image through `WEEKEND_REPORT_CI_IMAGE`;
-- never contains a `build:` directive;
-- uses PostgreSQL 16;
-- uses `tests/fixtures/config_valid` inside the image;
-- runs web and worker from the same image;
-- exposes only the web health port on loopback;
-- uses development authentication;
-- uses disposable Docker volumes/networks created under a unique Compose project name;
-- is removed with volumes after the smoke test.
+```text
+WEEKEND_REPORT_TEST_POSTGRES_URL
+WEEKEND_REPORT_TEST_POSTGRES_DISPOSABLE=1
+```
 
-Local example:
+It verifies:
+
+- two simultaneous run-creation attempts cannot create two active Weekend Reports;
+- multiple workers cannot claim the same `CREATED` run.
+
+Both GitHub and GitLab definitions provide a disposable PostgreSQL 16 service for this gate.
+
+Local verification can use a temporary Docker PostgreSQL container.
+
+## 9. Built-Image Smoke
+
+Build locally:
 
 ```powershell
-docker build -t weekend-report:local-ci .
-python scripts/ci.py image-smoke --image weekend-report:local-ci
+docker build --no-cache -t weekend-report:python314 .
 ```
 
-## GitHub Actions
+Confirm runtime:
+
+```powershell
+docker run --rm weekend-report:python314 python --version
+```
+
+Expected current runtime:
+
+```text
+Python 3.14.x
+```
+
+Smoke:
+
+```powershell
+python scripts/ci.py image-smoke --image weekend-report:python314
+```
+
+The smoke flow uses `deploy/docker/compose.ci.yml`.
+
+It verifies:
+
+- PostgreSQL starts/healthy;
+- web starts;
+- worker starts;
+- `/healthz` returns OK;
+- migration/database access succeeds;
+- exact supplied image is used;
+- temporary containers/volumes/networks are removed.
+
+`compose.ci.yml` must not contain a `build:` directive.
+
+## 10. GitHub Actions
 
 Files:
 
@@ -154,86 +294,11 @@ Files:
 .github/workflows/build-image.yml
 ```
 
-### Quality workflow
+### 10.1 Quality workflow
 
-`quality-gates.yml` runs on:
+Quality runs on normal repository activity such as configured pushes/pull requests and can be called by the image workflow.
 
-- branch pushes;
-- pull requests;
-- manual `workflow_dispatch`;
-- reusable `workflow_call` from the image workflow.
-
-The config-validation job runs first. Once it passes, the remaining pre-image gates run independently so the Actions UI identifies the exact failing category without waiting for unrelated gates to run serially.
-
-PostgreSQL uses a disposable `postgres:16-alpine` service and sets:
-
-```text
-WEEKEND_REPORT_TEST_POSTGRES_URL
-WEEKEND_REPORT_TEST_POSTGRES_DISPOSABLE=1
-```
-
-A PostgreSQL concurrency failure fails the workflow; it is not converted to a skip/pass.
-
-### Image workflow
-
-`build-image.yml` runs on:
-
-- manual `workflow_dispatch`;
-- semantic-style tags matching `v*.*.*`.
-
-It first calls the reusable quality workflow. The Docker job declares `needs: quality`, so it cannot start when a pre-image gate fails.
-
-The workflow then:
-
-1. derives build/version identity;
-2. builds with Buildx and loads the image into the runner Docker daemon;
-3. records the exact Docker image ID;
-4. smoke-tests that exact image;
-5. exports a compressed offline image archive;
-6. writes a SHA-256 checksum;
-7. uploads the verified archive as a workflow artifact;
-8. optionally pushes the same image to GHCR.
-
-A pull request never publishes an image.
-
-### GitHub registry controls
-
-Registry publication is off unless explicitly enabled.
-
-Manual run:
-
-- set `publish_registry=true` in the workflow input.
-
-Tagged run:
-
-- repository variable `WEEKEND_REPORT_PUBLISH_IMAGE=1` enables GHCR publishing;
-- repository variable `WEEKEND_REPORT_PUBLISH_LATEST=1` additionally enables `latest` for a version tag.
-
-The workflow uses the GitHub-provided token and `packages: write`; no hardcoded registry password is stored in the repository.
-
-Generated registry tags include:
-
-```text
-sha-<12-character-commit>
-<semantic-version>       # version-tag builds
-latest                   # only when explicitly enabled
-```
-
-## GitLab CI/CD
-
-Files:
-
-```text
-.gitlab-ci.yml
-.gitlab/ci/quality.yml
-.gitlab/ci/image.yml
-```
-
-The root file owns the pipeline stages and includes the quality/image definitions.
-
-### Quality jobs
-
-The GitLab quality layer contains separately visible jobs for:
+It exposes separate release-blocking jobs so failures are visible by category:
 
 ```text
 config-validation
@@ -248,142 +313,310 @@ dependency-audit
 docker-compose-validate
 ```
 
-`config-validation` runs first. The remaining quality jobs use `needs: [config-validation]` and can run in parallel after configuration is confirmed.
+A pre-image failure prevents the image job from starting.
 
-The image job has explicit `needs` on every release-blocking quality job. If any gate fails, the image job cannot start.
+### 10.2 Image workflow trigger
 
-### GitLab PostgreSQL
+The release image workflow is intentionally **not** triggered by every normal commit.
 
-The concurrency job uses a disposable `postgres:16-alpine` GitLab service with a test-only database and credentials. The test database name includes `test`, and `WEEKEND_REPORT_TEST_POSTGRES_DISPOSABLE=1` is also set.
+It is triggered when the root `TAG` file changes on the configured release/default branch.
 
-### GitLab image job
+Concept:
 
-The default implementation uses Docker-in-Docker because the same job must both build and run the exact image for the smoke test.
-
-Runner requirement:
-
-```text
-Docker executor or equivalent runner able to use docker:27-dind
+```yaml
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - TAG
 ```
 
-On many self-managed installations, DinD requires a runner configuration that permits privileged Docker services. If organizational policy forbids privileged DinD, replace only the GitLab image execution adapter with an approved runner that exposes a Docker daemon or an approved build/run combination. Do not weaken the pre-image gates.
+If the project uses a different release branch, keep the actual workflow branch name authoritative.
 
-The job runs only when one of these applies:
+The workflow reads the version from:
 
-- a semantic version tag such as `v1.2.3`;
-- the default branch and `WEEKEND_REPORT_BUILD_IMAGE_ON_DEFAULT_BRANCH=1`;
-- a web/manual pipeline with `WEEKEND_REPORT_BUILD_IMAGE=1`;
-- a web/manual pipeline where the user explicitly starts the manual image job.
+```bash
+version="$(tr -d '\r\n' < TAG)"
+```
 
-Normal feature-branch and merge-request pipelines run the quality gates but do not build a release image.
+It must not use Git tag references as the application release version.
 
-### GitLab registry controls
-
-Registry publication is disabled by default.
-
-Set this protected CI/CD variable when publication is approved:
+### 10.3 GitHub release flow
 
 ```text
-WEEKEND_REPORT_PUBLISH_IMAGE=1
+TAG change
+   |
+   v
+reusable pre-image quality workflow
+   |
+   v
+needs: quality
+   |
+   v
+derive TAG version + build identity
+   |
+   v
+Buildx build/load exact local image
+   |
+   v
+record image ID
+   |
+   v
+exact-image smoke
+   |
+   v
+docker save archive
+   |
+   v
+SHA-256
+   |
+   v
+upload workflow artifact
+   |
+   `--> optional GHCR push
+```
+
+No production integration secrets are required.
+
+### 10.4 GitHub registry controls
+
+Registry publication remains optional.
+
+When enabled, publish the already-tested image as:
+
+```text
+ghcr.io/<owner>/<repo>:sha-<short-sha>
+ghcr.io/<owner>/<repo>:v1.0.1
 ```
 
 Optional:
 
 ```text
-WEEKEND_REPORT_PUBLISH_LATEST=1
+ghcr.io/<owner>/<repo>:latest
 ```
 
-When enabled, the job uses GitLab predefined registry credentials. No registry credential is hardcoded in YAML.
+Do not strip the `v` from the `TAG` value.
 
-## Offline Image Artifact
+Do not publish a different rebuilt image.
 
-Both platforms create a verified artifact after the smoke test:
+## 11. GitLab CI/CD
+
+Files:
 
 ```text
-weekend-report_<version>_<short-sha>.tar.gz
-weekend-report_<version>_<short-sha>.tar.gz.sha256
+.gitlab-ci.yml
+.gitlab/ci/quality.yml
+.gitlab/ci/image.yml
+```
+
+GitLab is currently maintained as a future-ready delivery path for later import/use.
+
+### 11.1 Quality jobs
+
+GitLab exposes the same quality categories and uses the same `scripts/ci.py` commands.
+
+### 11.2 Image-job trigger
+
+The image job must run only for a root `TAG` change on the default branch.
+
+Concept:
+
+```yaml
+rules:
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    changes:
+      - TAG
+    when: on_success
+  - when: never
+```
+
+The image version must be read from:
+
+```bash
+IMAGE_VERSION="$(tr -d '\r\n' < TAG)"
+```
+
+The GitLab image file must not derive the release version from `CI_COMMIT_TAG`.
+
+### 11.3 GitLab runner requirement
+
+The current image implementation uses Docker-in-Docker because the same job must build and run the exact image.
+
+Typical requirements:
+
+```text
+docker:27-cli
+docker:27-dind
+Docker-capable GitLab Runner
+```
+
+Self-managed GitLab may require a privileged Docker service depending on Runner configuration.
+
+If privileged DinD is forbidden, replace the image execution adapter with an approved equivalent that can still satisfy:
+
+```text
+build once -> test exact image -> export/push exact image
+```
+
+Do not weaken pre-image gates.
+
+## 12. Verified Offline Image Artifact
+
+After smoke success:
+
+```text
+weekend-report_<TAG-version>_<short-sha>.tar.gz
+weekend-report_<TAG-version>_<short-sha>.tar.gz.sha256
 image-id.txt
+```
+
+Example:
+
+```text
+weekend-report_v1.0.1_abc123def456.tar.gz
 ```
 
 Verify after transfer:
 
 ```powershell
-Get-FileHash .\weekend-report_<version>_<short-sha>.tar.gz -Algorithm SHA256
+Get-FileHash .\weekend-report_v1.0.1_<short-sha>.tar.gz -Algorithm SHA256
 ```
 
-Compare it with the `.sha256` file, then load it:
+Compare with the `.sha256` file.
+
+Load:
 
 ```powershell
-docker load -i .\weekend-report_<version>_<short-sha>.tar.gz
+docker load -i .\weekend-report_v1.0.1_<short-sha>.tar.gz
 ```
 
-If the local Docker version does not accept the compressed archive directly, decompress it first and pass the resulting `.tar` to `docker load`.
+If the local Docker version requires decompression first, decompress to `.tar` then load.
 
-## Dependency Audit and Closed Networks
+## 13. Release Procedure
 
-`pip-audit` is a release-blocking pre-image gate. On an internet-connected GitHub-hosted runner it can use its normal vulnerability/index sources.
+### Normal development
 
-For a closed/self-managed GitLab environment, provide an organization-approved path to the required Python package/vulnerability data. If the environment cannot access an approved audit source, the dependency-audit job should remain failed/blocked rather than silently claiming a security PASS.
+Make application/CI/docs changes and push them.
 
-Do not disable the audit only to make image creation green without an approved replacement control.
+Expected result:
 
-## Secrets and Production Isolation
+```text
+quality pipeline runs
+image release does not run
+```
 
-The CI definitions contain only disposable CI credentials.
+### Create a release image
 
-They must not receive:
+When the normal quality pipeline is green and the code is ready:
+
+1. edit only/primarily `TAG`;
+2. bump for example:
+
+```diff
+-v1.0.0
++v1.0.1
+```
+
+3. commit:
+
+```text
+chore(release): bump version to v1.0.1
+```
+
+4. push the default/release branch.
+
+Expected result:
+
+```text
+TAG change detected
+  -> pre-image gates run again
+  -> image build only if green
+  -> image smoke
+  -> verified artifact
+  -> optional publish
+```
+
+No `git tag -a ...` command is required for this release mechanism.
+
+## 14. Dependency Audit and Closed Networks
+
+`pip-audit` is a release-blocking quality gate when its approved vulnerability/package sources are available.
+
+GitHub-hosted runners can normally use network sources.
+
+A closed/self-managed GitLab installation must provide an approved internal/offline source or treat the gate as blocked rather than silently reporting PASS.
+
+## 15. Secrets / Production Isolation
+
+Standard CI must not receive:
 
 - Portainer production tokens;
 - RabbitMQ production passwords;
 - production SSH private keys;
-- production DB-validation credentials;
-- production DOCTOR credentials;
+- production DB validation credentials;
+- DOCTOR credentials;
 - Recording credentials;
 - production evidence.
 
-Future live-integration tests should use an explicitly approved isolated test environment and a separately reviewed workflow. They must not be added to normal pull-request/merge-request quality jobs by default.
+CI uses fixture configuration and disposable infrastructure only.
 
-## Diagnosing Failure
+## 16. CI Regression Tests
 
-Examples:
+`tests/unit/test_ci_config.py` verifies delivery invariants, including:
+
+- CI YAML parses;
+- quality gates remain separately visible;
+- image build depends on pre-image gates;
+- exact image is smoked before export/publish;
+- CI files do not contain known production integration secrets;
+- `compose.ci.yml` uses an exact image and contains no `build:`;
+- release image is driven by the `TAG` file;
+- GitHub release logic does not fall back to `GITHUB_REF_NAME`/Git tags;
+- GitLab release logic does not fall back to `CI_COMMIT_TAG`.
+
+Do not weaken these tests simply to make a pipeline green. Fix the delivery file that violated the invariant.
+
+## 17. Failure Diagnosis
 
 ```text
-Config validation FAIL
-  -> all downstream quality jobs skipped
-  -> image not built
+Ruff FAIL
+  -> image NOT STARTED
 
-Ruff PASS
-Mypy PASS
-Unit tests PASS
+Mypy FAIL
+  -> image NOT STARTED
+
+Unit regression detects stale CI_COMMIT_TAG
+  -> image NOT STARTED
+  -> fix .gitlab/ci/image.yml
+
 PostgreSQL concurrency FAIL
-  -> image not built
+  -> image NOT STARTED
 
-All quality gates PASS
+All pre-image gates PASS
 Image build PASS
-Built-image smoke FAIL
-  -> verified archive not exported
-  -> registry push not executed
+Image smoke FAIL
+  -> no verified archive/registry release
 ```
 
-The CI YAML exposes separate job names while `scripts/ci.py` keeps the actual command contract centralized.
+This fail-before-build behavior is intentional.
 
-## What Must Be Verified After Repository Upload
+## 18. Current Verification Notes
 
-Local checks can validate the scripts and YAML structure, but actual hosted behavior must be verified after upload.
+Verified locally during the Python 3.14 migration:
 
-GitHub:
+- configuration gate behavior;
+- Ruff;
+- Mypy;
+- unit/contract/non-PostgreSQL integration tests;
+- PostgreSQL concurrency using a disposable PostgreSQL container;
+- safe fixture E2E;
+- dependency audit with no known vulnerabilities at the time tested;
+- Docker Compose validation;
+- Docker build using `python:3.14-slim-bookworm`;
+- container runtime `Python 3.14.7`;
+- exact-image smoke with PostgreSQL, web, worker, `/healthz`, and migration.
 
-- Actions are enabled for the repository;
-- selected runner supports the pinned action runtime versions;
-- GHCR package permission is allowed if publishing is enabled;
-- repository variables for publication are reviewed.
+A hosted GitHub quality run also passed before the final TAG-file release-trigger refactor. The first hosted pre-image run after adding the TAG-only regression test correctly detected remaining legacy `CI_COMMIT_TAG` logic in the GitLab image definition. After correcting that definition, run GitHub Actions again before claiming the final TAG-only refactor is hosted-verified.
 
-GitLab:
-
-- a compatible Runner is registered;
-- Docker/DinD or the approved alternative works;
-- external/package mirrors required by `pip install` and `pip-audit` are reachable;
-- artifact size/retention policy permits the compressed image archive;
-- GitLab Container Registry is enabled if registry publication is desired.
-
-Neither hosted CI platform is required for normal application runtime.
+Actual GitLab Runner execution must still be verified after the project is imported to GitLab.

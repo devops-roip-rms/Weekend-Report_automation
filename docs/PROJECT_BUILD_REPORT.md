@@ -1,207 +1,465 @@
 # Project Build Report
 
-Date: 2026-08-18
+**Updated:** 2026-08-19
 
-Scope: core framework hardening, operational-model correction, and professional UI/UX redesign.
-This pass did not start production integrations, did not execute real Recording state-changing
-calls, and did not perform Git operations.
+## 1. Current State
 
-## What Changed
+The Weekend Report project has completed:
 
-- Added shared expected-configuration resolution in `app/config/effective.py` for Portainer common
-  service inventory/defaults/per-site overrides and RabbitMQ common topology/defaults/per-site
-  overrides.
-- Refactored Portainer config templates and fixtures to remove duplicated per-site service lists.
-  Required services default to `true`; optional services must be explicit.
-- Updated Portainer task-state semantics so `failed`, `rejected`, `restarting`, and `starting` are
-  distinct. `starting` is policy-controlled and is not treated as permanently unhealthy by default.
-- Refactored RabbitMQ config templates and fixtures to use common vhost/queue/exchange/binding
-  topology with overrides and explicit optional topology behavior.
-- Replaced the Recording synthetic create/delete model with an existing-device start/stop workflow:
-  baseline WebApp/backend counts, select existing non-recording device, start same device, verify
-  increments, stop same device, verify restoration, cleanup/recovery.
-- Added structured Recording subresults for device selection, baselines, start/stop actions,
-  WebApp/backend increments/restoration, cleanup, and module status.
-- Added `config/database.yml`, `tests/fixtures/config_valid/database.yml`, and
-  `app/executors/database_sync_test.py` as an adapter boundary for the owner-supplied existing
-  database sync function. The temp-table algorithm is not rewritten in this project.
-- Replaced database exit-code validation with structured create/replicate/delete/replicate/cleanup
-  result validation.
-- Added Chrony parser boundary for `chronyc tracking` and `chronyc sources`, plus NFS mount source,
-  existence, usability, and utilization validation.
-- Kept fixture mode explicit and blocked live collectors when required environment contracts are
-  unknown. No silent live-to-fixture fallback was added.
-- Preserved review/evidence/finalization hardening from earlier work: additive reviewer notes,
-  ownership validation, frozen snapshots, final PDF from the snapshot only, production auth boundary,
-  CSRF protection, row-lock/atomic run semantics, and stale-worker recovery.
-- Redesigned the FastAPI/Jinja web UI into a consistent operations dashboard shell with a top
-  header, persistent module navigation, responsive content area, cards/panels, professional status
-  badges, and clear primary/secondary actions.
-- Rebuilt the run overview around summary-first information: RUN_ID, run state, automation status,
-  site summaries, module summaries, PASS/WARNING/FAIL/ERROR/MANUAL_REVIEW counts, important
-  findings, timestamps, current-module information, and reviewer/final-decision metadata.
-- Replaced raw wide module tables with readable result cards showing Check/Status/Expected/Actual/
-  Message, evidence links, reviewer notes, and expandable technical details.
-- Added module-specific UI presentations: two-site Portainer service comparison, RabbitMQ Queues/
-  Exchanges/Bindings/Node Alarms sections, existing-device Recording workflow steps, and
-  server-oriented Infrastructure panels.
-- Reworked Splunk review into dashboard cards with `OPEN ALL DASHBOARDS`, per-dashboard reviewer
-  notes, save/reload controls, and persisted-note display.
-- Reworked the Review page into summary-first grouped panels for findings, module notes, result
-  notes, Splunk notes, general notes, and final decision. Final confirmation now has visually
-  distinct APPROVE/REJECT choices, an explicit second confirmation step, and a clear immutable
-  findings warning.
-- Replaced browser-native alert feedback with accessible inline status and toast messages in
-  `app/web/static/app.js`.
-- Added UI regression tests for summary-first rendering, specialized module layouts, Splunk cards,
-  explicit final confirmation, no raw tables, and no `alert(` usage.
+- core framework implementation;
+- production security/review hardening;
+- portability hardening;
+- Python 3.14 migration;
+- shared local CI command contract;
+- GitHub Actions quality pipeline;
+- GitHub verified-image pipeline;
+- GitLab quality/image pipeline definitions for later use;
+- disposable PostgreSQL concurrency testing;
+- exact-image Docker smoke testing;
+- TAG-file-driven release versioning/trigger design.
 
-## CI/CD and Verified Image Delivery Pass
+No real production Portainer/RabbitMQ/SSH/Database/DOCTOR/Recording integration has been enabled through this documentation pass.
 
-A cross-platform CI/image-delivery layer was added without changing the manual-run application
-runtime or enabling production integrations.
+## 2. Current Runtime Baseline
+
+```text
+Python:          3.14
+Docker base:     python:3.14-slim-bookworm
+Validated image: Python 3.14.7
+PostgreSQL:      16-alpine
+```
+
+Python 3.14 dependency compatibility changes included:
+
+- Python-3.14-compatible PyYAML;
+- Python-3.14-compatible Psycopg binary;
+- PyYAML typing stubs for Mypy;
+- Ruff import fixes;
+- removal of obsolete Mypy ignore for `yaml`.
+
+## 3. Core Application Capabilities
 
 Implemented:
 
-- one portable CI command contract in `scripts/ci.py`;
-- a dedicated safe fixture E2E in `scripts/ci_e2e.py`;
-- a CI-only exact-image Compose smoke definition in `deploy/docker/compose.ci.yml`;
-- GitHub Actions quality gates plus a separately gated image workflow;
-- GitLab split quality/image CI includes;
-- disposable PostgreSQL 16 concurrency services in both hosted CI definitions;
-- image creation blocked until every pre-image gate succeeds;
-- exact built image smoke-tested before export or optional registry push;
-- verified offline `docker save` archive + SHA-256 artifact generation;
-- optional GHCR/GitLab Container Registry publication with no hardcoded registry credentials;
-- CI configuration regression tests and `docs/CI_CD.md`.
+- FastAPI web UI/API;
+- persistent worker;
+- PostgreSQL repository/migrations;
+- SQLite fixture-test path;
+- run states;
+- singleton execution lock;
+- worker heartbeat/current module;
+- stale-worker/recovery behavior;
+- protected production read/mutation paths;
+- reviewer-bound CSRF;
+- result/evidence persistence;
+- checksum/path controls;
+- HTML review;
+- module/result/Splunk/general notes;
+- finalization-readiness policy;
+- configured aggregation;
+- immutable snapshot;
+- one multi-page final PDF;
+- protected final-PDF serving;
+- portable traceability.
 
-The standard CI pipelines do not contact real Portainer, RabbitMQ, SSH, Database validation,
-DOCTOR, Splunk, or Recording systems. They use fixtures and disposable CI infrastructure only.
+## 4. Module Boundaries
 
-Validation performed while preparing this package:
+### Portainer
 
-- PASS: complete local `unittest` discovery after CI additions: 82 tests, 2 PostgreSQL tests
-  skipped because this artifact-build environment did not provide a PostgreSQL test URL.
-- PASS: shared integration gate excludes the PostgreSQL-specific module and runs the four normal
-  integration workflow tests.
-- PASS: new safe fixture E2E reaches APPROVED, freezes all saved notes into the snapshot, verifies
-  the notes in the generated PDF, and confirms automated result statuses are unchanged.
-- PASS: GitHub/GitLab/CI Compose YAML files parse with the existing YAML parser and CI regression
-  tests.
-- NOT VERIFIED IN THIS ARTIFACT-BUILD ENVIRONMENT: actual GitHub-hosted Actions execution.
-- NOT VERIFIED IN THIS ARTIFACT-BUILD ENVIRONMENT: actual GitLab Runner execution.
-- BLOCKED IN THIS ARTIFACT-BUILD ENVIRONMENT: Docker CLI/daemon is not installed, so the new
-  built-image smoke could not be executed here. Codex's previous Windows validation results above
-  remain unchanged.
-- BLOCKED IN THIS ARTIFACT-BUILD ENVIRONMENT: Ruff, Mypy, and pip-audit executables are not
-  installed in the provided execution environment. Their CI jobs install `requirements.txt` before
-  running.
+Implemented generic read-only Docker Swarm Service collector/validator architecture, fixture mode, sanitization, task-state/image/replica/parity tests.
 
-Hosted PostgreSQL concurrency is configured as release-blocking and must be observed passing on
-GitHub/GitLab before treating the hosted pipeline as fully verified.
+Live mode requires real approved environment details.
 
-## Current Project Structure
+### RabbitMQ
 
-- `app/api/`: FastAPI routes for runs, notes, review, reports, evidence, and health.
-- `app/auth.py`: development vs production reviewer identity and CSRF boundary.
-- `app/collectors/`: fixture/live collection boundaries for modules.
-- `app/config/`: config loading, schema constants, effective common-config resolution, preflight.
-- `app/database/`: migrations, models, repository, run locks, notes, evidence metadata.
-- `app/evidence/`: safe evidence paths, checksum writes, metadata models.
-- `app/executors/`: command/SSH/browser/database adapter boundaries.
-- `app/orchestrator/`: execution plan, worker runner, aggregation, run context, locks.
-- `app/reporting/`: frozen HTML/snapshot rendering and final multi-page PDF generation.
-- `app/review/`: note ownership and finalization readiness policy.
-- `app/validators/`: module validators and site parity validator.
-- `app/web/`: HTML templates, shared Jinja UI macros, CSS, and browser JavaScript for review/
-  finalization.
-- `app/worker/`: worker loop, heartbeat, stale-run recovery.
-- `config/`: production templates with controlled placeholders.
-- `deploy/docker/`: Docker Compose files and deployment notes.
-- `docs/`: architecture, configuration, validation, recovery, deployment, and this report.
-- `scripts/`: config validation, shared CI gates, safe CI E2E, and local smoke helpers.
-- `tests/fixtures/config_valid/`: safe fixture configuration.
-- `tests/unit/`, `tests/integration/`, `tests/contract/`: local and hosted-CI quality suite.
+Expected-state/topology validation architecture exists; real Management API configuration is still environment-dependent.
 
-## Tests And Checks
+### Recording
 
-- PASS: `python scripts/validate_config.py --config tests/fixtures/config_valid`.
-- PASS: `python scripts/validate_config.py --config config --expect-invalid`.
-  - Production templates remain intentionally invalid until required `<TBD>` and `<TO_VERIFY>`
-    values are supplied.
-- PASS: `python -m unittest discover -s tests -v`.
-  - Current package result: 82 tests run, 2 skipped.
-  - Skipped locally: PostgreSQL concurrency tests because `WEEKEND_REPORT_TEST_POSTGRES_URL` is not set; both hosted CI definitions provide a disposable PostgreSQL service so these tests become release-blocking there.
-- PASS: `python -m ruff check . --no-cache`.
-- PASS: `python -m mypy app tests`.
-- PASS: `pip-audit -r requirements.txt --cache-dir <writable-cache>`.
-  - Result: no known vulnerabilities found.
-  - Required approved network/index access after the default cache directory was not writable.
-- PASS: Headless Edge visual inspection of `/`, run overview, Portainer, DOCTOR, RabbitMQ,
-  Recording, Infrastructure, Database, Splunk, Review, Review final-confirmation area, and mobile
-  Overview/Review screenshots.
-  - Corrected two responsive metric-grid issues found during visual inspection.
-  - The in-app browser connector failed during setup with a missing kernel-assets path, so local
-    headless Edge screenshots were used for visual QA.
+Existing-device start/stop safety model exists.
 
-## Docker Results
+Real state-changing live calls remain disabled until approved.
 
-- PASS: `docker compose -f deploy/docker/compose.yml config` with disposable validation values.
-- PASS: `docker build -t weekend-report:ui-validation .` after approved Docker daemon access.
-- PASS: safe Compose smoke with `postgres` and `web` only, no worker, using `--build` against the
-  final source state.
-  - `GET http://localhost:8080/healthz` returned `{"status":"ok"}`.
-  - `docker compose ... ps` showed PostgreSQL healthy and web up.
-  - Teardown succeeded with `docker compose -p weekend-report-ui-smoke ... down -v`.
-  - Follow-up `docker ps` showed no `weekend-report-ui-smoke` containers.
+### Database
 
-## Remaining Controlled Placeholders
+Owner-supplied sync-function adapter boundary exists.
 
-Across `config/`, `.env.example`, and `deploy/docker/env.example`:
+Live execution remains blocked until the approved function/contract is provided.
 
-- `<TBD>`: 234
-- `<TO_VERIFY>`: 11
+### Infrastructure
 
-Selected production templates:
+Filesystem/NFS/Chrony validators exist.
 
-- `config/portainer_expected.yml`: 18 `<TBD>`, 8 `<TO_VERIFY>`
-- `config/rabbitmq_expected.yml`: 29 `<TBD>`, 0 `<TO_VERIFY>`
-- `config/recording.yml`: 20 `<TBD>`, 2 `<TO_VERIFY>`
-- `config/database.yml`: 7 `<TBD>`, 1 `<TO_VERIFY>`
+Live SSH is environment-dependent.
 
-## Still Awaiting Environment Information
+### DOCTOR / Splunk
 
-- Portainer URLs, auth method, tokens/secret mechanism, TLS policy, endpoint IDs, API contract,
-  service inventory, expected replicas/health/images/state, task-state policy, and parity rules.
-- RabbitMQ Management API URLs, users/passwords, TLS/retry policy, common topology, per-site
-  overrides, thresholds, and alarm policy.
-- Recording WebApp/backend query/action contracts, auth, polling values, cleanup verification,
-  no-eligible-device policy, and explicit approval for any state-changing start/stop calls.
-- Database approved existing sync function binding, source/replica identifiers, temp table
-  definition, cleanup policy, timeouts, and secret delivery.
-- Infrastructure SSH targets, approved read-only commands, host-key policy, filesystem/NFS/Chrony
-  expected values and thresholds.
-- DOCTOR API/manual source, Splunk dashboard definitions, production auth provider, reviewer
-  authorization list/group, CSRF signing key delivery, evidence storage/retention, archive/email
-  policies, and stale-worker timeout.
+Manual/API and manual-dashboard-review boundaries exist; production definitions are still required.
 
-## Known Limitations
+## 5. CI/CD Architecture
 
-- No real production systems were contacted.
-- Recording live execution is intentionally blocked until the existing-device start/stop contracts
-  are supplied and approved.
-- Database live execution raises a clear adapter-not-provided error until the owner inserts the
-  approved existing sync function behind `app/executors/database_sync_test.py`.
-- PostgreSQL concurrency tests are not verified without a disposable PostgreSQL URL.
-- `pip-audit` previously passed in the Codex validation environment; it could not be rerun in the artifact-build environment because package-index/network access is unavailable there.
-- `.env.example` and `deploy/docker/env.example` remain templates only. They must not be used as
-  runtime secret files.
+Shared command contract:
 
-## Exact Next Inputs Needed
+```text
+scripts/ci.py
+```
 
-1. Approved production auth provider and reviewer authorization source.
-2. Real non-committed runtime secret delivery mechanism.
-3. Completed Portainer, RabbitMQ, Recording, Database, Infrastructure, DOCTOR, Splunk, recovery,
-   evidence, archive, and email values listed in `docs/ENVIRONMENT_INPUTS_REQUIRED.md`.
-4. Disposable PostgreSQL URL for concurrency tests, if those must be verified locally.
-5. Approval to run `pip-audit` with network access, or an offline vulnerability database/source.
+Safe E2E:
+
+```text
+scripts/ci_e2e.py
+```
+
+CI-only exact-image Compose:
+
+```text
+deploy/docker/compose.ci.yml
+```
+
+GitHub:
+
+```text
+.github/workflows/quality-gates.yml
+.github/workflows/build-image.yml
+```
+
+GitLab:
+
+```text
+.gitlab-ci.yml
+.gitlab/ci/quality.yml
+.gitlab/ci/image.yml
+```
+
+## 6. Pre-Image Gates
+
+Release-blocking gates:
+
+```text
+Config validation
+Ruff
+Mypy
+Unit tests
+Contract tests
+Integration tests
+PostgreSQL concurrency
+Safe fixture E2E
+pip-audit
+Docker Compose validation
+```
+
+A failure stops image creation.
+
+## 7. Release Trigger Model
+
+The root:
+
+```text
+TAG
+```
+
+is the authoritative release trigger/version source.
+
+Example:
+
+```text
+v1.0.1
+```
+
+Normal commits:
+
+```text
+quality only
+NO release image
+```
+
+TAG change on the configured release/default branch:
+
+```text
+quality gates again
+-> image build
+-> exact-image smoke
+-> verified archive/checksum
+-> optional registry publication
+```
+
+The `v` prefix is preserved.
+
+Git tags (`GITHUB_REF_NAME`, `CI_COMMIT_TAG`) are not the application release-version source.
+
+## 8. Local Python 3.14 Validation Results
+
+Verified during the current migration cycle:
+
+### Configuration
+
+PASS:
+
+```text
+python scripts/ci.py config
+```
+
+The production-template half intentionally reported unresolved placeholders and ended with:
+
+```text
+Configuration invalid as expected
+```
+
+### Ruff
+
+PASS:
+
+```text
+python scripts/ci.py lint
+```
+
+### Mypy
+
+PASS:
+
+```text
+python scripts/ci.py typecheck
+```
+
+Result observed:
+
+```text
+Success: no issues found in 95 source files
+```
+
+Informational `annotation-unchecked` notes remain non-failing.
+
+### Unit
+
+PASS before the final TAG-only regression correction:
+
+```text
+75 unit tests passed
+```
+
+A new unit regression test was then added:
+
+```text
+test_image_release_is_driven_by_tag_file
+```
+
+The first hosted run of that test caught remaining legacy `CI_COMMIT_TAG` references in `.gitlab/ci/image.yml`, proving the gate worked as intended.
+
+The GitLab image definition was then required to be made fully TAG-driven. Run the hosted quality pipeline once more after the final YAML correction to record the final hosted result.
+
+### Contract
+
+PASS:
+
+```text
+1 contract test
+```
+
+### Non-PostgreSQL integration
+
+PASS:
+
+```text
+4 integration workflow tests
+```
+
+### PostgreSQL concurrency
+
+VERIFIED LOCALLY with a disposable PostgreSQL 16 Docker container.
+
+Required test-only env:
+
+```text
+WEEKEND_REPORT_TEST_POSTGRES_URL
+WEEKEND_REPORT_TEST_POSTGRES_DISPOSABLE=1
+```
+
+This is no longer considered an unverified local capability.
+
+### Safe E2E
+
+PASS:
+
+```text
+create -> claim -> execute -> evidence -> review -> notes -> approve -> snapshot -> final PDF
+```
+
+### Dependency audit
+
+PASS at time tested:
+
+```text
+No known vulnerabilities found
+```
+
+### Compose validation
+
+PASS for:
+
+```text
+deploy/docker/compose.yml
+deploy/docker/compose.ci.yml
+```
+
+## 9. Docker / Image Verification
+
+PASS:
+
+```powershell
+docker build --no-cache -t weekend-report:python314 .
+```
+
+Observed image:
+
+```text
+sha256:263f4c07558118fb4c5b5098fd4428e643682c8a66dabcb7f1b21397b1212809
+```
+
+PASS:
+
+```powershell
+docker run --rm weekend-report:python314 python --version
+```
+
+Observed:
+
+```text
+Python 3.14.7
+```
+
+PASS:
+
+```powershell
+python scripts/ci.py image-smoke --image weekend-report:python314
+```
+
+Observed:
+
+- disposable PostgreSQL healthy;
+- web started;
+- worker started;
+- `/healthz` returned OK;
+- database schema initialized;
+- exact-image smoke passed;
+- containers/volumes/networks removed successfully.
+
+## 10. Docker Build-Context Improvement
+
+An earlier Docker build transferred roughly 153 MB of context.
+
+After ignore/cleanup changes, the later Python 3.14 build transferred roughly:
+
+```text
+630.89 kB
+```
+
+This confirms `.dockerignore`/project cleanup significantly reduced build context.
+
+## 11. GitHub Actions Status
+
+A hosted GitHub Actions quality run reached green after the Python 3.14/Ruff/Mypy/dependency corrections.
+
+The image workflow did not run on a normal commit, which exposed that the desired release policy was not Git-tag-driven.
+
+The design was then corrected to:
+
+```text
+normal commit -> quality only
+TAG change -> gated image delivery
+```
+
+The first hosted pre-image run after adding the TAG-only regression test failed intentionally because `.gitlab/ci/image.yml` still contained `CI_COMMIT_TAG`.
+
+That defect is a CI-definition consistency issue, not an application failure.
+
+Final required hosted verification after correcting `.gitlab/ci/image.yml`:
+
+```text
+test_image_release_is_driven_by_tag_file ... ok
+```
+
+and then the TAG-driven image workflow should be tested with an intentional `TAG` change.
+
+## 12. GitLab Status
+
+GitLab CI definitions are present and designed to use:
+
+```text
+default branch + rules:changes: TAG
+```
+
+The release version must come from the file content.
+
+Actual GitLab Runner execution is still pending future GitLab import/use.
+
+## 13. Remaining Controlled Production Inputs
+
+Still required locally/organizationally:
+
+- site definitions;
+- manager-approved rules/approval policy;
+- Portainer real values;
+- RabbitMQ real values;
+- Recording contracts/approval;
+- database adapter binding;
+- infrastructure inventory/SSH policy;
+- DOCTOR mode/contract;
+- Splunk dashboard definitions;
+- production authentication source;
+- reviewer authorization;
+- evidence retention/backups;
+- distribution/archive policy.
+
+See `docs/ENVIRONMENT_INPUTS_REQUIRED.md`.
+
+## 14. Known Non-Blocking Maintenance
+
+Unit tests emit a Starlette/FastAPI TestClient deprecation warning concerning the future `httpx2` transition.
+
+It is currently a warning, not a failing gate.
+
+Do not change working FastAPI/Starlette/httpx dependencies solely to silence it without a deliberate compatibility upgrade/test pass.
+
+## 15. Current Readiness
+
+### Core application framework
+
+READY for controlled real-environment configuration.
+
+### Python 3.14
+
+VERIFIED locally and in Docker.
+
+### Docker image runtime
+
+VERIFIED locally.
+
+### PostgreSQL concurrency
+
+VERIFIED locally with disposable PostgreSQL.
+
+### GitHub quality pipeline
+
+VERIFIED before the final TAG-trigger consistency edit; rerun required after the final GitLab YAML TAG-only correction.
+
+### GitHub TAG-driven image pipeline
+
+IMPLEMENTED DESIGN; must be exercised with an intentional TAG change after the final pre-image pipeline is green.
+
+### GitLab pipeline
+
+DEFINED / NOT YET RUN ON A REAL GITLAB RUNNER.
+
+### Production integrations
+
+NOT YET ENABLED.
+
+## 16. Next Engineering Step
+
+After the CI release-trigger correction is green:
+
+1. preserve the current core baseline;
+2. obtain manager-approved global policy;
+3. fill private site definitions locally;
+4. begin Portainer as the first live read-only integration;
+5. keep all secrets outside YAML/source control.

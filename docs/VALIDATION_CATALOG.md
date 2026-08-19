@@ -1,370 +1,702 @@
 # Validation Catalog
 
-Controlled placeholders (`<TBD>`, `<TO_VERIFY>`) are not production-ready. Required unresolved
-values fail production preflight.
+**Documentation synchronized:** 2026-08-19
 
-## Global Rules
+Controlled placeholders (`<TBD>`, `<TO_VERIFY>`) are not production-ready.
 
-- Config expected state lives in YAML.
+Required unresolved values fail production preflight.
+
+## 1. Global Rules
+
+- Expected state lives in YAML.
+- Secrets live outside YAML.
 - Collectors gather actual state or return a clear blocked/error payload.
-- Validators make PASS/WARNING/FAIL/ERROR/SKIPPED/MANUAL_REVIEW decisions.
-- Raw collector evidence and normalized result evidence are persisted with SHA-256 metadata.
-- Parity is additive. It never converts site/module expected-state failures into PASS.
-- Reviewer notes are additive. They never overwrite automated statuses.
+- Validators produce `PASS`, `WARNING`, `FAIL`, `ERROR`, `SKIPPED`, or `MANUAL_REVIEW`.
+- Raw/normalized evidence is persisted with checksum metadata.
+- Cross-site parity is additive and never masks expected-state failures.
+- Reviewer notes are additive and never rewrite automated statuses.
+- `config/rules.yml` is authoritative for aggregation and approval readiness.
+- CI fixture success does not mean production integration is configured.
 
-## Portainer
+## 2. Configuration / Runtime Identity
+
+### `config.preflight`
+
+Actual:
+- loaded YAML;
+- referenced runtime values;
+- schema/reference integrity.
+
+Expected:
+- all required enabled values resolved;
+- controlled placeholders absent where production requires real values;
+- valid site/module references.
+
+PASS:
+- production-ready config resolves cleanly.
+
+ERROR:
+- unresolved required placeholders;
+- invalid enum/reference;
+- missing required runtime secret/reference.
+
+Evidence:
+- preflight diagnostics.
+
+### `runtime.traceability`
+
+Actual:
+- `WEEKEND_REPORT_APP_VERSION`;
+- `WEEKEND_REPORT_BUILD_ID`;
+- configuration hash;
+- optional Git commit.
+
+Expected:
+- real app version/build ID in production;
+- deterministic config hash.
+
+PASS:
+- all mandatory values present.
+
+ERROR:
+- missing/placeholder production identity.
+
+## 3. Portainer
 
 ### `portainer.collection`
 
-- Actual source of truth: read-only HTTPS GETs to the configured Portainer Server/API.
-- Expected source/value: `config/portainer_expected.yml` connection URL env, endpoint ID, auth,
-  TLS, timeouts, retry policy, API contract.
-- Comparison rule: verified read-only endpoints must return parseable service/task JSON.
-- PASS: no separate collection PASS result is emitted when collection succeeds.
-- WARNING/FAIL: not used.
-- ERROR: auth, TLS, timeout, unsupported API, invalid JSON, malformed response, or unresolved
-  required live configuration.
-- Evidence: sanitized raw/error payload and normalized result evidence.
-- Parity: collection errors are never converted into parity findings.
+Actual source:
+- read-only HTTPS GET to configured Portainer Server/API.
+
+Expected:
+- connection URL env reference;
+- auth;
+- endpoint ID;
+- API contract;
+- TLS;
+- timeout/retry.
+
+PASS:
+- no separate collection PASS required.
+
+ERROR:
+- auth/TLS/timeout/unsupported API/invalid JSON/malformed response/unresolved required live config.
+
+Evidence:
+- sanitized raw/error payload;
+- normalized state.
 
 ### `portainer.service.exists`
 
-- Actual source of truth: normalized Swarm service names from Portainer/Docker.
-- Expected source/value: effective common service inventory plus per-site overrides.
-- Comparison rule: expected service name exists for the same site.
-- PASS: service exists.
-- WARNING: not used.
-- FAIL: required service missing.
-- ERROR: actual site state was not collected reliably.
-- SKIPPED: optional service missing.
-- Evidence: raw service list and normalized result.
-- Parity: optional `service_presence` parity only after site validation.
+PASS:
+- required service exists.
 
-### `portainer.service.desired_replicas`, `running_replicas`, `healthy_replicas`
+FAIL:
+- required service absent.
 
-- Actual source of truth: normalized Swarm service desired count, task running count, and verified
-  health signal where available.
-- Expected source/value: effective `expected.desired_replicas`, `expected.running_replicas`,
-  `expected.healthy_replicas`.
-- Comparison rule: desired/running equal expected; healthy is greater than or equal to expected.
-- PASS: count satisfies expected value.
-- WARNING: not used unless a future approved policy adds it.
-- FAIL: reliable actual count does not satisfy expected value.
-- ERROR: missing expected count, unavailable health signal when health is required, malformed
-  response, or unreliable collection.
-- Evidence: raw service/task JSON, normalized counts, health source/definition.
-- Parity: optional per-field parity compares normalized values only.
+SKIPPED:
+- explicitly optional service absent.
+
+ERROR:
+- site state was not collected reliably.
+
+### `portainer.service.desired_replicas`
+
+PASS:
+- actual desired equals expected desired.
+
+FAIL:
+- reliable mismatch.
+
+ERROR:
+- missing/unreliable data.
+
+### `portainer.service.running_replicas`
+
+PASS:
+- running equals configured expectation.
+
+FAIL:
+- reliable mismatch.
+
+ERROR:
+- unreliable count.
+
+### `portainer.service.healthy_replicas`
+
+PASS:
+- healthy count satisfies expectation.
+
+FAIL:
+- reliable healthy-count shortfall.
+
+ERROR:
+- health signal unavailable/unverified when required.
 
 ### `portainer.service.image`
 
-- Actual source of truth: normalized Swarm container image reference.
-- Expected source/value: effective expected image reference and comparison policy.
-- Comparison rule: `full_reference`, `repository_tag`, or `digest`.
-- PASS: normalized image matches.
-- WARNING: not used.
-- FAIL: reliable mismatch.
-- ERROR: unsupported comparison, malformed response, or unreliable collection.
-- Evidence: raw service JSON and normalized image value.
-- Parity: optional `image` parity compares actual image values only.
+Comparison policy:
+- `full_reference`;
+- `repository_tag`;
+- `digest`.
+
+PASS:
+- configured match.
+
+FAIL:
+- reliable mismatch.
+
+ERROR:
+- unsupported comparison/unreliable collection.
 
 ### `portainer.service.state`
 
-- Actual source of truth: normalized service state/update metadata exposed by the verified API.
-- Expected source/value: effective `expected.service_state`.
-- Comparison rule: actual state equals expected state.
-- PASS: state matches.
-- WARNING: not used.
-- FAIL: reliable mismatch.
-- ERROR: malformed/unreliable collection.
-- Evidence: raw service JSON and normalized state.
-- Parity: optional `service_state` parity.
+PASS:
+- actual service state equals expected.
+
+FAIL:
+- reliable mismatch.
+
+ERROR:
+- malformed/unreliable state.
 
 ### `portainer.service.task_state`
 
-- Actual source of truth: normalized Swarm task states and counts.
-- Expected source/value: effective `expected.task_state_policy`.
-- Comparison rule: `failed`, `rejected`, `restarting`, and `starting` are evaluated separately.
-  Defaults are FAIL for failed/rejected/restarting and IGNORE for starting.
-- PASS: no counted task state violates policy.
-- WARNING: policy maps an observed state to WARNING.
-- FAIL: policy maps an observed state to FAIL.
-- ERROR: policy unresolved/invalid, or collection unreliable.
-- Evidence: raw task JSON, normalized task states/counts, applied policy.
-- Parity: not compared unless a future explicit parity field is added.
+Evaluate independently:
 
-## RabbitMQ
+- failed;
+- rejected;
+- restarting;
+- starting.
+
+Configured policy decides WARNING/FAIL/IGNORE as approved.
+
+Unresolved policy is ERROR/preflight-blocking.
+
+### Portainer parity
+
+Parity runs after site validation.
+
+Both sites being identically unhealthy must not become PASS because they match each other.
+
+## 4. RabbitMQ
 
 ### `rabbitmq.collection`
 
-- Actual source of truth: RabbitMQ Management API fixture/live collector output.
-- Expected source/value: `config/rabbitmq_expected.yml` collection mode and live connection fields.
-- Comparison rule: actual site topology/metrics must be reliably collected.
-- PASS: no separate collection PASS result on success.
-- WARNING/FAIL: not used.
-- ERROR: live collection blocked/unconfigured, API unavailable, malformed response.
-- Evidence: raw/error payload and normalized result.
-- Parity: collection errors are never hidden by topology parity.
+Actual:
+- Management API or fixture actuals.
 
-### `rabbitmq.vhost.exists`, `queue.exists`, `exchange.exists`, `binding.exists`
+ERROR:
+- live collection blocked/unconfigured;
+- API unavailable;
+- malformed response.
 
-- Actual source of truth: RabbitMQ Management API vhosts, queues, exchanges, bindings.
-- Expected source/value: effective common topology plus per-site overrides.
-- Comparison rule: required objects exist and match site/vhost/name/source/destination/routing key.
-- PASS: object exists.
-- WARNING: not used.
-- FAIL: required object missing.
-- ERROR: topology cannot be collected reliably.
-- SKIPPED: explicitly optional object absent.
-- Evidence: raw topology JSON and normalized result.
-- Parity: stable topology parity only if explicitly configured.
-
-### `rabbitmq.queue.*`, `rabbitmq.exchange.*`
-
-- Actual source of truth: queue/exchange properties from Management API.
-- Expected source/value: effective durability, auto-delete, exclusivity, type, consumers, backlog
-  thresholds.
-- Comparison rule: properties equal expected; consumers meet minimum; backlog uses thresholds.
-- PASS: properties/metrics satisfy expected values.
-- WARNING: backlog is in warning range.
-- FAIL: property mismatch, consumers below minimum, or backlog at/above critical.
-- ERROR: metric/property unavailable from unreliable collection.
-- Evidence: queues/exchanges JSON and normalized result.
-- Parity: dynamic backlog parity disabled unless explicitly approved.
-
-### `rabbitmq.node.memory_alarm`, `rabbitmq.node.disk_alarm`
-
-- Actual source of truth: RabbitMQ node alarm state.
-- Expected source/value: no active memory or disk alarm.
-- Comparison rule: alarm booleans must be false.
-- PASS: not emitted when no alarm is active.
-- WARNING: not used.
-- FAIL: alarm active.
-- ERROR: node state cannot be collected reliably.
-- Evidence: node JSON and normalized result.
-- Parity: not applicable.
-
-## Recording
-
-### Workflow Contract
-
-- Actual source of truth: approved WebApp/backend/action adapters or fixture actuals.
-- Expected source/value: `config/recording.yml` existing-device workflow.
-- Comparison rule: no device create/delete. Select first suitable existing non-recording device,
-  baseline WebApp count N and backend count M, start same device, require WebApp N+1/backend M+1,
-  stop same device, require WebApp N/backend M restored, then cleanup verification.
-- Evidence: selected device identity, baselines, action responses, poll results, cleanup state.
-- Parity: none.
-
-### Recording Subresults
+### Topology existence
 
 Applies to:
 
-- `recording.device_selection`
-- `recording.webapp_baseline`
-- `recording.backend_baseline`
-- `recording.start_action`
-- `recording.device_started`
-- `recording.webapp_increment`
-- `recording.backend_increment`
-- `recording.stop_action`
-- `recording.device_stopped`
-- `recording.webapp_restored`
-- `recording.backend_restored`
-- `recording.cleanup`
-- `recording.module_status`
+- vhost;
+- queue;
+- exchange;
+- binding.
 
-Semantics:
+PASS:
+- required object exists/matches.
 
-- PASS: subresult succeeded and observed values match expected counts/state.
-- WARNING: only if future approved policy explicitly maps a reliable condition to WARNING.
-- FAIL: reliable bad behavior such as increment/restoration mismatch, wrong device recording state,
-  failed start/stop action, or cleanup incomplete.
-- ERROR: unreliable/unreachable/parse/unknown state, no approved live contract, no eligible device
-  when policy is unresolved/error, or recovery required after unknown state.
-- SKIPPED: only if an approved future no-eligible-device policy explicitly allows it.
-- Evidence: raw action/poll evidence and normalized phase result.
-- Recovery behavior: crash/unknown after start sets `RECOVERY_REQUIRED`; no automatic replay.
+FAIL:
+- required object missing.
 
-## Database
+SKIPPED:
+- explicitly optional object absent.
+
+ERROR:
+- topology unreliable.
+
+### Queue properties / consumers / backlog
+
+PASS:
+- properties match;
+- consumers >= minimum;
+- backlog below warning.
+
+WARNING:
+- warning range.
+
+FAIL:
+- property mismatch;
+- consumers below minimum;
+- backlog >= critical.
+
+ERROR:
+- metric/property unavailable.
+
+### Exchange properties
+
+PASS:
+- type/durable/autodelete match.
+
+FAIL:
+- reliable mismatch.
+
+ERROR:
+- unreliable collection.
+
+### Node alarms
+
+FAIL:
+- memory alarm active;
+- disk alarm active.
+
+ERROR:
+- alarm state unavailable.
+
+## 5. Recording
+
+### Workflow contract
+
+No device creation/deletion.
+
+Expected sequence:
+
+```text
+baseline
+-> select existing non-recording device
+-> start same device
+-> verify increment/state
+-> stop same device
+-> verify restoration
+-> cleanup
+```
+
+Subresults include:
+
+- device selection;
+- WebApp baseline;
+- backend baseline;
+- start action;
+- device started;
+- WebApp increment;
+- backend increment;
+- stop action;
+- device stopped;
+- WebApp restored;
+- backend restored;
+- cleanup;
+- module status.
+
+PASS:
+- reliable expected transition.
+
+FAIL:
+- reliable bad behavior/mismatch/cleanup failure.
+
+ERROR:
+- unreliable state/unreachable/parse/unknown state;
+- live contract not approved;
+- recovery required.
+
+SKIPPED:
+- only if explicitly approved policy allows it.
+
+Unknown state after a state-changing action:
+
+```text
+RECOVERY_REQUIRED
+```
+
+No automatic replay.
+
+## 6. Database
 
 ### `database.sync_execution`
 
-- Actual source of truth: `app/executors/database_sync_test.py` adapter result.
-- Expected source/value: approved existing sync function reference in `config/database.yml`.
-- Comparison rule: adapter must return structured per-site results.
-- PASS: not emitted separately on successful structured execution.
-- WARNING/FAIL: not used for adapter startup.
-- ERROR: approved function not supplied, function error, malformed result, unresolved live config.
-- Evidence: adapter output/error payload and normalized result.
-- Parity: not applicable.
+Actual:
+- owner-supplied adapter result.
 
-### Database Structured Steps
+ERROR:
+- function not supplied;
+- function exception;
+- malformed result;
+- unresolved live config.
 
-Applies to:
+### Structured steps
 
-- `database.create`
-- `database.replication_after_create`
-- `database.delete`
-- `database.replication_after_delete`
-- `database.cleanup`
-- `database.module_status`
+Expected true:
 
-Semantics:
+- create success;
+- replication after create;
+- delete success;
+- replication after delete;
+- cleanup complete.
 
-- Actual source of truth: owner-supplied existing function that creates a temp table, checks
-  replication to expected DBs, deletes it, and checks deletion replication.
-- Expected source/value: each structured boolean is expected to be true.
-- Comparison rule: every mandatory boolean must be true.
-- PASS: value is true.
-- WARNING: non-blocking errors recorded while all booleans are true.
-- FAIL: reliable false for create, replication, delete, or cleanup.
-- ERROR: missing/unknown value or malformed structured result.
-- Evidence: function evidence payload, target names, errors, normalized result.
-- Parity: none unless future explicit database parity is approved.
+PASS:
+- true.
 
-## Infrastructure
+FAIL:
+- reliable false.
 
-### `infrastructure.collection`
+ERROR:
+- missing/unknown/malformed.
 
-- Actual source of truth: approved read-only SSH/command collectors or fixtures.
-- Expected source/value: `config/servers.yml` server inventory and command contracts.
-- Comparison rule: actual server outputs must be reliable and parseable.
-- PASS: no separate PASS on successful collection.
-- WARNING/FAIL: not used.
-- ERROR: live SSH collection blocked/unconfigured, unreachable server, parse failure.
-- Evidence: raw command output/error payload.
-- Parity: collection failures remain independent.
+WARNING:
+- only for explicitly non-blocking errors while required booleans remain true.
 
-### `infrastructure.filesystem.exists`, `filesystem.utilization`
+## 7. Infrastructure
 
-- Actual source of truth: parsed `df` output.
-- Expected source/value: configured filesystems, mountpoints, warning/critical thresholds.
-- Comparison rule: required mount exists; utilization compared to thresholds.
-- PASS: mount exists and utilization below warning.
-- WARNING: utilization in warning range.
-- FAIL: required mount missing or utilization at/above critical.
-- ERROR: command/parse unavailable.
-- Evidence: raw `df`, parsed rows, normalized result.
-- Parity: missing mount never passes because another site matches.
+### Collection
 
-### `infrastructure.nfs.exists`, `nfs.source`, `nfs.usable`, `nfs.utilization`
+ERROR:
+- SSH live mode unconfigured;
+- unreachable;
+- command/parse failure.
 
-- Actual source of truth: configured NFS mount fixture/live parser and `df` fallback for
-  `server:/path` filesystems.
-- Expected source/value: configured NFS source, mountpoint/destination, usability, thresholds.
-- Comparison rule: required NFS mount exists, source matches, mount is usable, utilization within
-  thresholds.
-- PASS: expected NFS state is present and healthy.
-- WARNING: utilization in warning range.
-- FAIL: required mount missing, source mismatch, unusable mount, or critical utilization.
-- ERROR: actual NFS state cannot be determined reliably.
-- Evidence: raw command output or fixture actual, normalized mount mapping.
-- Parity: additive only if explicitly configured.
+### Filesystem
 
-### `infrastructure.chrony.synchronized`, `chrony.source`, `chrony.offset`
+PASS:
+- mount exists and utilization below warning.
 
-- Actual source of truth: normalized `chronyc tracking` and `chronyc sources` output.
-- Expected source/value: configured Chrony/NTP source and offset thresholds.
-- Comparison rule: synchronized true, selected source matches expected, absolute offset within
-  thresholds.
-- PASS: synchronized/source/offset satisfy config.
-- WARNING: offset in warning range.
-- FAIL: unsynchronized, source mismatch, or critical offset.
-- ERROR: command output missing/malformed/unreliable.
-- Evidence: raw Chrony outputs and normalized `{synchronized, source, offset}`.
-- Parity: additive only if explicitly configured.
+WARNING:
+- warning range.
 
-## DOCTOR
+FAIL:
+- required mount missing or utilization >= critical.
 
-- Actual source of truth: configured manual/API source.
-- Expected source/value: `config/doctor.yml`.
-- Comparison rule: manual mode emits `MANUAL_REVIEW`; future API mode must compare explicit
-  expected status/schema.
-- PASS/WARNING/FAIL: only for future approved API semantics.
-- ERROR: invalid config/API failure.
-- MANUAL_REVIEW: manual review required.
-- Evidence: manual note/link or API payload.
-- Parity: none unless explicitly approved.
+ERROR:
+- actual state unavailable.
 
-## Splunk
+### NFS
 
-- Actual source of truth: human review of configured dashboard URL.
-- Expected source/value: `config/splunk_dashboards.yml`.
-- Comparison rule: each configured dashboard requiring review must have a saved note before
-  approval when policy requires it.
-- MANUAL_REVIEW: dashboard awaits human review.
-- ERROR: invalid dashboard definition or missing required note at finalization.
-- Evidence: saved Splunk dashboard note and frozen snapshot entry.
-- Parity: not applicable.
+PASS:
+- required mount exists, expected source matches, usable, utilization healthy.
 
-## Review, Evidence, Auth, Recovery, Reporting
+WARNING:
+- warning range.
 
-### `review.note_ownership` and `review.note_editable_state`
+FAIL:
+- missing/source mismatch/unusable/critical utilization.
 
-- Actual source of truth: database runs/results/notes and configured dashboards/modules.
-- Expected source/value: requested run/result/module/dashboard plus `rules.review`.
-- Comparison rule: result belongs to run, dashboard exists, module is valid, general notes enabled,
-  run state is `REVIEW_READY`.
-- PASS: note accepted.
-- ERROR: invalid ownership, disabled scope, wrong state.
-- Evidence: persisted note row and frozen snapshot note.
+ERROR:
+- actual state unavailable.
 
-### `review.final_confirmation` and `review.finalization_readiness`
+### Chrony
 
-- Actual source of truth: database results/notes, rules, configured dashboards, explicit reviewer
-  APPROVE/REJECT.
-- Expected source/value: `rules.review`, `rules.aggregation`, dashboard note requirements.
-- Comparison rule: approval policy and required notes/acks must be satisfied before APPROVE.
-- PASS: run moves to APPROVED/REJECTED and freezes snapshot/PDF.
-- FAIL: configured status policy blocks approval.
-- ERROR: missing required note/ack, invalid decision/state, snapshot/PDF failure.
-- Evidence: frozen snapshot, final PDF path/checksum, note rows.
+PASS:
+- synchronized;
+- expected source;
+- offset below warning.
+
+WARNING:
+- warning offset range.
+
+FAIL:
+- unsynchronized/source mismatch/critical offset.
+
+ERROR:
+- output unavailable/malformed.
+
+## 8. DOCTOR
+
+Manual mode:
+
+```text
+MANUAL_REVIEW
+```
+
+API mode requires an approved validation contract.
+
+ERROR:
+- invalid config/API failure.
+
+No API PASS/WARNING/FAIL semantics may be invented.
+
+## 9. Splunk
+
+Actual:
+- human dashboard review.
+
+Expected:
+- configured dashboard definitions/review-note policy.
+
+MANUAL_REVIEW:
+- dashboard awaits human review.
+
+Finalization ERROR/block:
+- required dashboard review/note missing according to policy.
+
+Evidence:
+- saved dashboard note in database/snapshot.
+
+## 10. Review / Finalization
+
+### `review.note_ownership`
+
+Validate:
+
+- result belongs to run;
+- dashboard exists;
+- module valid;
+- general notes enabled if used;
+- run is editable.
+
+ERROR:
+- ownership/state/scope violation.
+
+### `review.finalization_readiness`
+
+Before APPROVE enforce configured:
+
+- required module completion;
+- dashboard review;
+- required notes;
+- manual-review acknowledgments;
+- Recording cleanup acknowledgment;
+- status-specific approval policy.
+
+FAIL:
+- explicit status policy blocks approval.
+
+ERROR:
+- required note/ack/state missing;
+- snapshot/PDF failure.
+
+### Automated-status immutability
+
+Reviewer acceptance never changes machine:
+
+```text
+WARNING -> PASS
+FAIL -> PASS
+ERROR -> PASS
+```
+
+Automated status and reviewer decision remain separate facts.
+
+## 11. Evidence
 
 ### `evidence.persistence`
 
-- Actual source of truth: evidence filesystem and database evidence rows.
-- Expected source/value: safe paths under `runs/<RUN_ID>/...`.
-- Comparison rule: raw and normalized evidence are written under root with checksum metadata.
-- PASS: evidence exists and path/checksum are recorded.
-- ERROR: write failure, unsafe path, missing file, checksum/path validation failure.
-- Evidence: evidence row itself.
+PASS:
+- safe run-owned path;
+- file exists;
+- checksum metadata recorded.
 
-### `auth.production_reviewer_identity` and `auth.browser_csrf`
+ERROR:
+- unsafe path;
+- write failure;
+- missing file;
+- checksum/path validation failure.
 
-- Actual source of truth: configured production auth provider and reviewer-bound CSRF tokens.
-- Expected source/value: runtime auth/CSRF env vars.
-- Comparison rule: production rejects arbitrary `X-Reviewer`; mutations require valid CSRF token.
-- PASS: authorized reviewer access/mutation succeeds.
-- FAIL: unauthorized reviewer rejected.
-- ERROR: provider/signing configuration missing or invalid.
-- Evidence: API responses and final reviewer metadata.
+Raw evidence must be sanitized of known credentials/tokens.
 
-### `recovery.stale_worker` and `recovery.manual_resolution`
+## 12. Auth / CSRF
 
-- Actual source of truth: database run state/current module/heartbeat.
-- Expected source/value: `rules.recovery.heartbeat_timeout_seconds` and operator instructions.
-- Comparison rule: stale non-Recording runs fail without replay; stale Recording runs enter
-  `RECOVERY_REQUIRED` and block new runs until manual resolution.
-- PASS: explicit recovery resolution unblocks future run without replay.
-- ERROR: unresolved Recording recovery, invalid resolution, or blocked new run.
-- Evidence: run state/current-module message and recovery note/API response.
+### `auth.production_reviewer_identity`
 
-### `reporting.final_pdf_access` and `runtime.portable_traceability`
+PASS:
+- authorized reviewer resolved through approved provider.
 
-- Actual source of truth: run metadata, frozen snapshot, evidence root final PDF.
-- Expected source/value: `WEEKEND_REPORT_APP_VERSION`, `WEEKEND_REPORT_BUILD_ID`, config hash,
-  run-owned final PDF path.
-- Comparison rule: snapshot/PDF contain traceability; route serves only registered safe PDF path.
-- PASS: metadata/path/checksum valid.
-- ERROR: missing runtime identity, unsafe/missing PDF path, arbitrary path attempt.
-- Evidence: frozen snapshot and final PDF checksum/path.
+FAIL:
+- unauthorized reviewer.
+
+ERROR:
+- missing/invalid provider configuration.
+
+### `auth.browser_csrf`
+
+PASS:
+- reviewer-bound signed token valid.
+
+FAIL:
+- invalid/expired/mismatched token.
+
+ERROR:
+- signing configuration missing.
+
+## 13. Recovery
+
+### `recovery.stale_worker`
+
+Non-Recording stale:
+- fail without replay.
+
+Recording stale/uncertain:
+- `RECOVERY_REQUIRED`.
+
+### `recovery.manual_resolution`
+
+PASS:
+- explicit safe human resolution completed;
+- new run unblocked without replaying uncertain state-changing call.
+
+ERROR:
+- unresolved/invalid recovery.
+
+## 14. Reporting
+
+### `reporting.final_pdf_access`
+
+PASS:
+- route serves recorded run-owned final PDF;
+- safe path;
+- authorized access.
+
+ERROR:
+- unsafe/missing/arbitrary path.
+
+### `reporting.snapshot_completeness`
+
+PASS:
+- all persisted notes represented;
+- results/evidence/summaries/traceability represented.
+
+ERROR:
+- completeness mismatch.
+
+## 15. Docker Runtime
 
 ### `docker.runtime_secret_boundary`
 
-- Actual source of truth: Docker Compose model and runtime env/secrets.
-- Expected source/value: non-committed `.env`, Docker secret, or approved secret mechanism.
-- Comparison rule: Compose must fail clearly for missing required secrets and must not use literal
-  `<TBD>` as a runtime secret.
-- PASS: Compose config renders only when required runtime values are supplied.
-- ERROR: missing or placeholder runtime secret.
-- Evidence: Compose config validation output and startup error where applicable.
+PASS:
+- Compose receives real required runtime values.
+
+ERROR:
+- required secret missing;
+- literal controlled placeholder used as runtime secret.
+
+### `docker.exact_image_smoke`
+
+Actual:
+- supplied `WEEKEND_REPORT_CI_IMAGE`.
+
+Expected:
+- PostgreSQL healthy;
+- web running;
+- worker running;
+- `/healthz` OK;
+- migration/access succeeds.
+
+PASS:
+- exact image passes all checks.
+
+ERROR/FAIL:
+- any required container/health/migration check fails.
+
+Important:
+`compose.ci.yml` must not rebuild a different image.
+
+## 16. CI / Release Validation
+
+### `ci.pre_image_quality`
+
+Required gates:
+
+- config;
+- Ruff;
+- Mypy;
+- unit;
+- contract;
+- integration;
+- PostgreSQL concurrency;
+- safe E2E;
+- dependency audit;
+- Compose validation.
+
+PASS:
+- every required gate succeeds.
+
+FAIL:
+- any gate fails.
+
+Effect:
+- image build must not start.
+
+### `ci.postgres_concurrency`
+
+PASS:
+- simultaneous create protected;
+- single worker claim protected.
+
+FAIL:
+- race/concurrency invariant broken.
+
+Must use disposable PostgreSQL.
+
+### `ci.release_tag_file`
+
+Actual:
+- root `TAG` content.
+
+Expected:
+- one semantic-style version with leading `v`.
+
+PASS example:
+
+```text
+v1.0.1
+```
+
+ERROR:
+- file missing;
+- malformed;
+- empty;
+- release workflow derives version from Git tag instead.
+
+GitHub must not require `GITHUB_REF_NAME` for release version.
+
+GitLab must not require `CI_COMMIT_TAG` for release version.
+
+### `ci.release_trigger`
+
+Normal source change:
+
+```text
+quality only
+```
+
+TAG change on configured release/default branch:
+
+```text
+quality -> image
+```
+
+FAIL:
+- normal source-only commit builds release image;
+- TAG change bypasses required quality gates.
+
+### `ci.image_delivery`
+
+Required sequence:
+
+```text
+build exact image
+-> record identity
+-> smoke exact image
+-> export same image
+-> optional push same image
+```
+
+FAIL:
+- export/publish happens before smoke;
+- a different image is rebuilt after smoke;
+- smoke failure still permits release.
+
+### `ci.secret_boundary`
+
+PASS:
+- only disposable/test credentials;
+- no production integration secrets in CI definitions/artifacts.
+
+FAIL:
+- production secret names/values are embedded where forbidden.
+
+## 17. Release Artifact
+
+Verified artifact contains:
+
+```text
+weekend-report_<TAG-version>_<short-sha>.tar.gz
+weekend-report_<TAG-version>_<short-sha>.tar.gz.sha256
+image-id.txt
+```
+
+The SHA-256 must be verified after offline transfer before loading/deployment.

@@ -1,142 +1,372 @@
 # Architecture
 
-The application is manual-run only. FastAPI creates run records after configuration preflight, a persistent worker atomically claims `CREATED` runs, collectors gather actual state/evidence, validators generate immutable automated findings, and reviewers use HTML pages to add module/result/Splunk/general notes.
+**Documentation synchronized:** 2026-08-19
 
-## Runtime Boundary
+## 1. System Purpose
 
-- Health endpoints are public.
-- In production, main pages, run pages, module/review pages, evidence endpoints, evidence downloads, and final-report access require an authenticated and authorized reviewer.
-- Development mode allows local convenience identity. Production rejects arbitrary `X-Reviewer` and requires an explicitly configured provider such as `trusted_header` behind an approved reverse-proxy/auth boundary.
-- Browser mutations use reviewer-bound signed CSRF tokens created from `WEEKEND_REPORT_CSRF_SIGNING_KEY`. A permanent shared public CSRF token is not supported.
+Weekend Report Automation is a manually triggered operational-validation system. FastAPI creates a run only after configuration preflight, a persistent worker atomically claims that run, collectors gather actual state and evidence, validators generate immutable automated findings, and a human reviewer completes the report in HTML before one final PDF is generated.
 
-## Run And Worker Model
+GitHub Actions and GitLab CI/CD are software-delivery systems only. They never replace the manual Weekend Report trigger.
 
-Run creation uses a database-backed single-run lock. PostgreSQL uses explicit row locks/atomic updates, and SQLite uses `BEGIN IMMEDIATE` for local testing. Any run in `CREATED`, `RUNNING`, or `RECOVERY_REQUIRED` blocks a new run.
+## 2. Runtime Topology
 
-The worker never replays an uncertain Recording start/stop operation. Stale non-Recording runs fail without replay. Stale Recording runs enter `RECOVERY_REQUIRED` and require explicit human resolution before a new run can be created.
+```text
+Reviewer
+   |
+   v
+FastAPI web
+   |
+   +------ PostgreSQL
+   |
+   +------ Evidence store
+   |
+   v
+Run record: CREATED
+   |
+   v
+Persistent worker
+   |
+   v
+Collectors
+   |
+   v
+Validators
+   |
+   v
+Evidence + Results
+   |
+   v
+REVIEW_READY
+   |
+   v
+HTML review / notes
+   |
+   v
+APPROVE or REJECT
+   |
+   v
+Frozen snapshot
+   |
+   v
+Final PDF
+```
 
-## Evidence And Review
+The same application image is used for web and worker with different commands.
 
-Every collector/check can persist raw evidence and every stored result gets normalized evidence with checksum metadata. Evidence paths are stored relative to the evidence root with portable separators. Review UI evidence links are protected and must reference registered database evidence.
+Current Python baseline:
 
-Reviewer notes are additive and never rewrite automated statuses. The frozen review snapshot includes all results, all evidence references, all module/result/Splunk/general notes, site summaries, module summaries, parity summaries, reviewer decision, and timestamp.
+```text
+Python 3.14
+Docker base: python:3.14-slim-bookworm
+```
 
-## Module Integration Boundaries
+## 3. Runtime Security Boundary
 
-Collectors gather actual state; validators compare it to expected YAML. Fixture mode is explicit.
-Live mode is blocked until approved environment information is supplied. There is no silent
-live-to-fixture fallback.
+- Health endpoints may remain public.
+- In production, main pages, run pages, module/review pages, evidence endpoints, evidence downloads, recovery actions, and final-report access require authenticated/authorized access.
+- Development mode may use local convenience identity.
+- Production rejects arbitrary `X-Reviewer`.
+- The implemented production identity boundary is configurable and currently supports `trusted_header` only behind an approved trusted reverse-proxy/authentication boundary.
+- Browser mutations use reviewer-bound signed CSRF tokens generated with `WEEKEND_REPORT_CSRF_SIGNING_KEY`.
+- One permanent public/shared CSRF token is not supported.
 
-### Portainer
+## 4. Run and Worker Model
 
-Portainer is strictly read-only and limited to Docker Swarm Services. Expected configuration uses a
-common service inventory, defaults, and per-site overrides.
+Run states:
+
+```text
+CREATED
+RUNNING
+REVIEW_READY
+APPROVED
+REJECTED
+FAILED
+RECOVERY_REQUIRED
+```
+
+Run creation is protected by a database-backed singleton lock.
+
+PostgreSQL uses explicit locking/atomic transitions. SQLite uses local transaction locking for safe fixture tests.
+
+Any unresolved active/recovery run prevents unsafe concurrent execution.
+
+The worker records:
+
+- worker identity;
+- heartbeat;
+- current module;
+- timestamps.
+
+A stale Recording operation is never automatically replayed.
+
+## 5. Collector / Validator Separation
+
+```text
+Collector
+  -> obtains actual state
+  -> stores/sanitizes raw evidence
+
+Validator
+  -> receives actual + expected
+  -> produces PASS/WARNING/FAIL/ERROR/SKIPPED/MANUAL_REVIEW
+
+Parity validator
+  -> compares configured normalized fields only after site validation
+```
+
+Collectors do not decide business PASS/FAIL policy.
+
+Validators do not invent actual state.
+
+## 6. Evidence and Review
+
+Evidence paths are stored relative to the configured evidence root.
+
+Evidence must:
+
+- remain under the run-owned evidence root;
+- reject traversal/arbitrary paths;
+- include SHA-256 metadata;
+- exclude credentials/tokens;
+- remain immutable for review.
+
+Review notes can be scoped to:
+
+- MODULE
+- RESULT
+- SPLUNK_DASHBOARD
+- GENERAL
+
+Reviewer notes never rewrite automated status.
+
+The frozen review snapshot contains:
+
+- run metadata;
+- `application_version`;
+- `build_id`;
+- `configuration_hash`;
+- optional Git commit;
+- results;
+- evidence references;
+- site summaries;
+- module summaries;
+- parity summaries;
+- all persisted reviewer notes;
+- reviewer identity;
+- decision;
+- confirmation timestamp.
+
+## 7. Module Boundaries
+
+### 7.1 Portainer
+
+Portainer integration is strictly read-only and limited to Docker Swarm Services.
 
 ```text
 Weekend Report Worker
   |
-  +-- HTTPS READ ONLY --> Portainer Site 1 Server/API
-  |                         |
-  |                         v
-  |                       Docker Swarm
-  |                         |
-  |                         v
-  |                       Swarm Services
-  |                         |
-  |                         +-- tasks inspected only when needed for service health/state
+  +-- HTTPS GET --> Portainer Site 1 Server/API --> Docker Swarm Services
   |
-  +-- HTTPS READ ONLY --> Portainer Site 2 Server/API
-                            |
-                            v
-                          Docker Swarm
-                            |
-                            v
-                          Swarm Services
-                            |
-                            +-- tasks inspected only when needed for service health/state
+  `-- HTTPS GET --> Portainer Site 2 Server/API --> Docker Swarm Services
 ```
 
-The application communicates with the Portainer Server/API. The Portainer Agent remains part of
-Portainer's own environment connectivity and is not a direct Weekend Report monitoring target.
-The app does not expose Portainer start/stop/restart/scale/update/delete/redeploy/stack/container
-mutation operations.
+The application does not expose Portainer mutation operations.
 
-Validation sequence:
+Expected-state validation occurs independently per site before cross-site parity.
 
 ```text
-Site 1 actual state -> Site 1 expected-state validation
-Site 2 actual state -> Site 2 expected-state validation
-                                      |
-                                      v
-                            Cross-site parity
+Site 1 actual -> Site 1 expected-state validation
+Site 2 actual -> Site 2 expected-state validation
+                               |
+                               v
+                       configured parity
 ```
 
-### RabbitMQ
+Both sites being identically wrong must still fail expected-state validation.
 
-RabbitMQ expected state uses common vhost/queue/exchange/binding topology, defaults, and per-site
-overrides. Actual topology and metrics must come from the RabbitMQ Management API or fixture actuals.
-Required topology defaults to true; optional topology must be explicit.
+### 7.2 RabbitMQ
 
-### Recording
+RabbitMQ expected state contains common vhosts/queues/exchanges/bindings, defaults, and per-site overrides.
 
-Recording uses an existing-device workflow only. The application must not create or delete devices.
-The workflow selects a suitable existing non-recording device, records WebApp/backend baselines,
-starts recording on the same device, verifies WebApp/backend increments, stops the same device,
-verifies restoration, and records cleanup/recovery evidence. A crash or unknown state after start
-requires `RECOVERY_REQUIRED`; the worker must not replay the state-changing call.
+Actual state comes from the RabbitMQ Management API or fixture actuals.
 
-### Database
+Required topology defaults to required unless explicitly marked optional.
 
-The database module is an adapter boundary for the owner-supplied existing sync function. The
-project expects structured create/replicate/delete/replicate/cleanup booleans and errors. It does
-not rewrite the temp-table sync algorithm.
+### 7.3 Recording
 
-### Infrastructure
+Recording uses an **existing-device** start/stop workflow.
 
-Infrastructure collection is read-only. Live SSH is blocked until targets, credentials, host-key
-policy, and command contracts are approved. Validators cover filesystems, NFS mappings/source/
-usability/utilization, and Chrony synchronization/source/offset.
+The application must not create/delete devices.
 
-### Parity
+High-level flow:
 
-Parity compares explicitly configured normalized fields after site validation. It never hides
-expected-state failures, so both sites being identically wrong still leaves the site findings as
-FAIL/ERROR.
+1. collect WebApp/backend baselines;
+2. select a suitable existing non-recording device;
+3. start recording on that same device;
+4. verify device/WebApp/backend expected transition;
+5. stop the same device;
+6. verify restoration;
+7. verify cleanup.
 
-## Finalization
+Crash/unknown state after a state-changing action requires `RECOVERY_REQUIRED`.
 
-`config/rules.yml` drives aggregation, module unavailability behavior, and APPROVE readiness. APPROVE can require required modules completed, Splunk dashboards reviewed, Splunk notes, module/result/general notes, manual-review acknowledgments, Recording cleanup acknowledgments, and status-specific approval policy. REJECT follows `rules.review.reject_allowed`.
+### 7.4 Database
 
-Final confirmation freezes `runs/<RUN_ID>/final/review_snapshot.json` and then generates exactly one final PDF from that immutable snapshot. The PDF route serves only the recorded run-owned final PDF path and rejects traversal or arbitrary filesystem paths.
+The database module is an adapter around the owner-supplied existing sync function.
 
-## Portable Traceability
+Expected structured outcomes include:
 
-Every run, snapshot, and final PDF records:
+- create success;
+- replication after create;
+- delete success;
+- replication after delete;
+- cleanup complete;
+- errors.
 
-- `application_version` from `WEEKEND_REPORT_APP_VERSION`
-- `build_id` from `WEEKEND_REPORT_BUILD_ID`
-- deterministic `configuration_hash` from the effective YAML files
+The Weekend Report project does not silently replace the existing temp-table algorithm.
 
-`git_commit` is optional future traceability and is `"<NOT_APPLICABLE>"` when Git metadata is unavailable. GitLab is not a runtime dependency.
+### 7.5 Infrastructure
 
-The default configuration intentionally contains placeholders and blocks real execution.
+Infrastructure collection is read-only.
 
-## Software Delivery / CI Boundary
+Live SSH remains blocked until server inventory, authentication, host-key policy, and approved commands are supplied.
 
-CI/CD is outside the operational Weekend Report runtime. GitHub Actions and GitLab CI/CD are software-delivery quality systems only; neither platform schedules or starts a real production Weekend Report.
+Validation covers:
 
-Both platforms reuse `scripts/ci.py` as the command contract. The pipeline boundary is:
+- filesystem existence/utilization;
+- NFS mapping/source/usability/utilization;
+- Chrony synchronization/source/offset.
+
+### 7.6 DOCTOR
+
+DOCTOR supports:
 
 ```text
-source change
+manual
+api
+```
+
+API mode requires a verified endpoint/schema/auth/validation contract.
+
+Manual mode remains a human-review finding.
+
+### 7.7 Splunk
+
+Splunk is a manual dashboard-review area.
+
+Each configured dashboard can have:
+
+- stable ID;
+- display name;
+- URL;
+- required-review flag;
+- note-required flag;
+- display order.
+
+All saved Splunk notes are frozen into the snapshot/final report.
+
+## 8. Aggregation and Finalization
+
+`config/rules.yml` is authoritative for:
+
+- module enablement;
+- module requiredness;
+- unavailable status;
+- aggregation;
+- parity;
+- note requirements;
+- status-specific approval policy;
+- rejection policy;
+- recovery timeout.
+
+Automated findings remain immutable.
+
+Final confirmation writes:
+
+```text
+runs/<RUN_ID>/final/review_snapshot.json
+runs/<RUN_ID>/final/weekend-report-<RUN_ID>.pdf
+```
+
+The PDF is rendered only from the frozen snapshot.
+
+## 9. Portable Traceability
+
+Mandatory runtime traceability:
+
+- `application_version`
+- `build_id`
+- deterministic `configuration_hash`
+
+Optional:
+
+- Git commit SHA, when Git metadata is actually available.
+
+Local-folder operation does not depend on Git metadata.
+
+Release-image versioning uses the root `TAG` file.
+
+Example:
+
+```text
+TAG = v1.0.1
+```
+
+The `v` prefix is preserved.
+
+## 10. Software Delivery / CI Boundary
+
+### Normal change
+
+```text
+source push / PR / MR
   -> config validation
-  -> static/test/security/Compose gates
-  -> all gates pass
-  -> image build
-  -> exact-image smoke
-  -> verified offline artifact and optional registry publication
+  -> Ruff
+  -> Mypy
+  -> unit
+  -> contract
+  -> integration
+  -> PostgreSQL concurrency
+  -> safe fixture E2E
+  -> dependency audit
+  -> Compose validation
+  -> quality PASS
+
+NO release image merely because source changed.
 ```
 
-Pre-image gates include a disposable PostgreSQL 16 service so the run-lock/worker-claim concurrency tests are no longer intentionally skipped in CI. The safe E2E uses fixtures only. No production integration credentials are required or permitted by the standard quality pipelines.
+### Release request
 
-Image build/publish is deliberately separated from normal branch validation. See `docs/CI_CD.md` for GitHub/GitLab triggers and runner requirements.
+The root `TAG` file is the release trigger/version source.
+
+```text
+TAG changed on release/default branch
+  -> pre-image quality gates run again
+  -> all pass
+  -> build exact image
+  -> smoke exact image
+  -> export archive + SHA-256
+  -> optional registry publication
+```
+
+Neither GitHub nor GitLab should derive the application release version from a Git tag.
+
+The CI regression suite checks this contract.
+
+## 11. Build-Once / Test-Same-Image Principle
+
+The release path follows:
+
+```text
+BUILD
+  |
+  v
+TEST EXACT IMAGE
+  |
+  v
+EXPORT / TAG / PUSH THAT SAME IMAGE
+```
+
+`deploy/docker/compose.ci.yml` intentionally contains no `build:` directive.
+
+See `docs/CI_CD.md`.
