@@ -1,5 +1,5 @@
 .python_gate:
-  image: python:3.11-slim
+  image: python:3.14-slim
   cache:
     key: "pip-${CI_COMMIT_REF_SLUG}"
     paths:

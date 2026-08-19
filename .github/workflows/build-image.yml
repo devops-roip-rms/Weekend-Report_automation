@@ -38,18 +38,21 @@ jobs:
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA:0:12}"
+
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
               echo "Tag must be semantic-version style, for example v1.2.3" >&2
               exit 1
             fi
-            version="${GITHUB_REF_NAME#v}"
+            version="${GITHUB_REF_NAME}"
           else
             version="ci-${short_sha}"
           fi
+
           build_id="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           image_tag="weekend-report:ci-${short_sha}"
           archive_base="weekend-report_${version}_${short_sha}"
+
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "build_id=${build_id}" >> "$GITHUB_OUTPUT"

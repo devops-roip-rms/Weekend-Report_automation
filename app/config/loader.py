@@ -15,7 +15,7 @@ class ConfigError(ValueError):
 def _load_text(path: Path) -> Any:
     text = path.read_text(encoding="utf-8")
     try:
-        import yaml  # type: ignore
+        import yaml
 
         loaded = yaml.safe_load(text)
     except ModuleNotFoundError:
