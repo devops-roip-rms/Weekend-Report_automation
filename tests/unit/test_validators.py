@@ -22,10 +22,14 @@ class ValidatorTests(unittest.TestCase):
     def context(self, config):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
+
+        repo = Repository("sqlite:///:memory:")
+        self.addCleanup(repo.close)
+
         return RunContext(
             "WR-20260811-000000",
             config,
-            Repository("sqlite:///:memory:"),
+            repo,
             EvidenceManager(Path(tmp.name)),
         )
 

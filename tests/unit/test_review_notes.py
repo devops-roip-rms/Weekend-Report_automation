@@ -30,10 +30,13 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.config = load_config_dir("tests/fixtures/config_valid")
         self.evidence = EvidenceManager(Path(self.tmp.name) / "evidence")
         app = create_app()
+
         app.dependency_overrides[dependencies.get_repository] = lambda: self.repo
         app.dependency_overrides[dependencies.get_config] = lambda: self.config
         app.dependency_overrides[dependencies.get_evidence_manager] = lambda: self.evidence
+
         self.client = TestClient(app)
+        self.addCleanup(self.client.close)
 
     def make_review_ready_run(self, run_id: str = "WR-20260811-000000") -> str:
         self.repo.create_run(started_by="tester", run_id=run_id)
