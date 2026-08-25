@@ -22,3 +22,6 @@ default:
 include:
   - local: .gitlab/ci/quality.yml
   - local: .gitlab/ci/image.yml
+
+
+#test
