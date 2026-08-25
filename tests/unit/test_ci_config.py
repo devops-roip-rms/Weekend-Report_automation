@@ -109,9 +109,41 @@ class CIConfigTests(unittest.TestCase):
 
         self.assertIn("< TAG", gitlab_text)
 
+    def test_manual_verified_image_rebuild_triggers_are_supported(self):
+        github_text = self.github_image.read_text(encoding="utf-8")
+        gitlab_root_text = self.gitlab_root.read_text(encoding="utf-8")
+        gitlab_image_text = self.gitlab_image.read_text(encoding="utf-8")
+
+        # GitHub: manual rebuild is allowed in addition to TAG-change automation.
+        self.assertIn("workflow_dispatch:", github_text)
+
+        # GitLab: manually created UI pipelines must be allowed globally.
+        self.assertIn(
+            'CI_PIPELINE_SOURCE == "web"',
+            gitlab_root_text,
+        )
+
+        # GitLab: the image job must participate in a manual pipeline
+        # only on the default branch.
+        self.assertIn(
+            'CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH',
+            gitlab_image_text,
+        )
+
+        # Automatic TAG-driven image creation must still remain enabled.
+        self.assertIn("changes:", gitlab_image_text)
+        self.assertIn("- TAG", gitlab_image_text)
+
     def test_gitlab_pipeline_is_not_git_tag_triggered(self):
         text = self.gitlab_root.read_text(encoding="utf-8")
+
         self.assertNotIn("CI_COMMIT_TAG", text)
+        self.assertIn('CI_PIPELINE_SOURCE == "web"', text)
+        self.assertIn('CI_PIPELINE_SOURCE == "merge_request_event"', text)
+        self.assertIn(
+            '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"',
+            text,
+        )
 
     def test_ci_compose_uses_exact_image_and_fixture_config(self):
         text = self.ci_compose.read_text(encoding="utf-8")
