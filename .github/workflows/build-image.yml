@@ -50,7 +50,7 @@ jobs:
           build_id="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           image_tag="weekend-report:ci-${short_sha}"
           release_image_tag="weekend-report:${version}"
-          archive_base="weekend-report_${version}_${short_sha}"
+          archive_base="weekend-report_${version}"
 
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
@@ -118,7 +118,7 @@ jobs:
       - name: Upload verified image artifact
         uses: actions/upload-artifact@v6
         with:
-          name: verified-weekend-report-image-${{ steps.identity.outputs.short_sha }}
+          name: verified-weekend-report-image-${{ steps.identity.outputs.version }}
           path: dist/
           if-no-files-found: error
           retention-days: 14
