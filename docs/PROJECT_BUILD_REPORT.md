@@ -20,7 +20,7 @@ The root contains the expected ZIP project shape:
 
 ```text
 .github/
-.gitlab/
+.gitlab-ci-cd/
 app/
 config/
 deploy/
@@ -54,12 +54,12 @@ Files modified after the home ZIP baseline was copied:
 .env.example
 .github/workflows/build-image.yml
 .gitlab-ci.yml
-.gitlab/ci/image.yml
+.gitlab-ci-cd/image.yml
 Dockerfile
 README.md
 deploy/docker/README.md
 deploy/docker/compose.yml
-deploy/docker/env.example
+deploy/docker/.env.example
 docs/ARCHITECTURE.md
 docs/CI_CD.md
 docs/CONFIGURATION_GUIDE.md
@@ -86,7 +86,7 @@ tests/unit/test_recovery.py
 - GitHub release branch was verified locally as `origin/main`; the image workflow now uses `main`.
 - Production Compose no longer has a production `build:` path and uses
   `${WEEKEND_REPORT_IMAGE:-weekend-report:local}` for both web and worker.
-- `.env.example` and `deploy/docker/env.example` are template-only and use `<TBD>` for unresolved
+- `.env.example` and `deploy/docker/.env.example` are template-only and use `<TBD>` for unresolved
   runtime identity values; both include `WEEKEND_REPORT_IMAGE=weekend-report:local`.
 - `docs/RECOVERY_POLICY.md` was restored to the full stale-worker/Recording recovery policy.
 - Docker base image was pinned to the locally verified Python 3.14 Slim Bookworm digest:
@@ -368,7 +368,7 @@ config/servers.yml
 config/sites.yml
 config/splunk_dashboards.yml
 .env.example
-deploy/docker/env.example
+deploy/docker/.env.example
 ```
 
 Information still needed:
@@ -378,11 +378,11 @@ Information still needed:
 - production auth provider and authorized reviewers;
 - non-committed runtime secret mechanism and real values;
 - Portainer URLs/auth/API contract/endpoint IDs/service expectations;
-- RabbitMQ URLs/auth/topology/thresholds;
-- Recording WebApp/backend/device selection/start/stop/cleanup/recovery contracts;
-- approved database sync-function adapter contract;
-- infrastructure server inventory/SSH/host-key/filesystem/NFS/Chrony expectations;
-- DOCTOR manual/API mode and semantics;
+- RabbitMQ Management API URLs/auth, queue zero-count policy, recheck policy, and node resource-state mappings;
+- Recording Manager/device selection/start/stop, four read-only observations, cleanup, and recovery contracts;
+- approved non-empty PowerShell database synchronization script and structured adapter contract;
+- infrastructure server inventory/SSH/strict host-key/filesystem/Chrony expectations;
+- DOCTOR API schema/auth and exactly 17 expected service-health semantics;
 - Splunk dashboard IDs/names/URLs/note requirements;
 - production evidence retention, backup, archive, and distribution policy;
 - GitLab Runner/DinD or equivalent execution details before relying on GitLab.

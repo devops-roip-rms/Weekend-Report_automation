@@ -20,5 +20,5 @@ default:
   interruptible: true
 
 include:
-  - local: .gitlab/ci/quality.yml
-  - local: .gitlab/ci/image.yml
+  - local: .gitlab-ci-cd/quality.yml
+  - local: .gitlab-ci-cd/image.yml

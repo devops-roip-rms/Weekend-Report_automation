@@ -9,6 +9,10 @@ Unknown required facts must remain:
 ```text
 <TBD>
 <TO_VERIFY>
+<SERVICE_01>
+<DASHBOARD_1_ID>
+<VERIFY_AUTH_ENUM>
+<TO_IMPLEMENT>
 ```
 
 until verified.
@@ -103,16 +107,13 @@ Do not place actual tokens in YAML/docs/chat.
 - user/password secret delivery;
 - TLS verification;
 - timeouts/retries;
-- vhosts;
-- queues;
-- exchanges;
-- bindings;
-- durability/auto-delete/exclusive policy;
-- minimum consumers;
-- warning/critical backlog thresholds;
-- node alarm policy;
-- optional topology;
-- parity policy.
+- confirmation that all live queues should be checked;
+- approved zero-count policy for ready/unacked/total messages;
+- queue recheck attempts and delay;
+- approved node resource-state mapping for file descriptors;
+- approved node resource-state mapping for socket descriptors;
+- approved node resource-state mapping for Erlang processes;
+- approved node resource-state mapping for disk space.
 
 ## 6. Recording
 
@@ -120,10 +121,12 @@ Recording uses an existing device.
 
 Required:
 
-- WebApp URL/auth/query contract;
-- recording-count query;
-- device recording-state query;
-- backend URL/auth/query contract;
+- Manager WebApp URL/auth/action contract;
+- Manager existing-device selection contract;
+- Site 1 WebApp read-only recording-count observation;
+- Site 2 WebApp read-only recording-count observation;
+- Site 1 server read-only recording-count observation;
+- Site 2 server read-only recording-count observation;
 - suitable existing-device selection criteria;
 - approved start action;
 - approved stop action;
@@ -136,46 +139,38 @@ Required:
 
 ## 7. Database
 
-- approved owner sync-function reference;
-- source database identifier;
-- expected replica identifiers;
-- temp-table definition/contract;
-- cleanup policy;
-- replication timeout semantics;
-- required secret env names;
-- structured result mapping.
+- non-empty approved `scripts/database/database_sync_check.ps1`;
+- verified PowerShell runtime and host environment;
+- approved script arguments, if any;
+- approved script timeout;
+- source/replica/topology details owned inside the script contract;
+- temp-table creation/deletion behavior owned inside the script contract;
+- cleanup policy owned inside the script contract;
+- structured result mapping returned to Weekend Report.
 
 ## 8. Infrastructure
 
 - per-site server inventory;
 - SSH username/auth delivery;
 - SSH host-key verification policy;
+- strict known-hosts file delivery;
 - approved read-only commands;
 - expected filesystems/mountpoints;
 - warning/critical utilization;
-- expected NFS source/destination;
-- NFS usability expectations;
 - expected Chrony/NTP source;
 - warning/critical clock offset;
 - timezone expectations if applicable.
 
 ## 9. DOCTOR
 
-Choose and define:
-
-### Manual
-
-- review URL;
-- instructions;
-- required note/acknowledgment.
-
-### API
-
 - endpoint;
 - authentication;
 - schema;
-- expected state;
-- PASS/WARNING/FAIL/ERROR semantics.
+- exactly 17 expected services;
+- healthy/unhealthy/missing-service semantics;
+- unhealthy reason field;
+- manual-review acknowledgment instructions for reviewable health findings;
+- transport/API/authentication/timeout/schema error semantics.
 
 ## 10. Splunk
 

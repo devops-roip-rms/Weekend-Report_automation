@@ -1,63 +1,88 @@
 {
+  # ============================================================
+  # Splunk dashboards
+  # Splunk validation is a manual-review step.
+  # The Weekend Report does not decide whether the dashboard
+  # contents are healthy. It provides the configured dashboard
+  # links and requires the reviewer to inspect them.
+  # Each dashboard marked required_review=true must be reviewed
+  # before the Splunk module can be completed.
+  # Dashboard URLs are environment-specific configuration values
+  # and should point directly to the required Splunk dashboards.
+  # ============================================================
   "dashboards": [
     {
-      "id": "<TBD>",
-      "display_name": "<TBD>",
-      "url": "<TBD>",
-      "required_review": "<TBD>",
-      "note_required": "<TBD>",
-      "order": "<TBD>"
+      # Stable internal identifier.
+      "id": "<DASHBOARD_1_ID>",
+      # Human-readable name displayed in the Weekend Report UI.
+      "display_name": "<DASHBOARD_1_NAME>",
+      # Direct URL to the Splunk dashboard.
+      "url": "<DASHBOARD_1_URL>",
+      # This dashboard must be reviewed.
+      "required_review": true,
+      # A separate note for this specific dashboard is not required.
+      # The Splunk module itself already requires reviewer notes
+      # through the global review policy.
+      "note_required": false,
+      # Display/open order.
+      "order": 1
     },
     {
-      "id": "<TBD>",
-      "display_name": "<TBD>",
-      "url": "<TBD>",
-      "required_review": "<TBD>",
-      "note_required": "<TBD>",
-      "order": "<TBD>"
+      "id": "<DASHBOARD_2_ID>",
+      "display_name": "<DASHBOARD_2_NAME>",
+      "url": "<DASHBOARD_2_URL>",
+      "required_review": true,
+      "note_required": false,
+      "order": 2
     },
     {
-      "id": "<TBD>",
-      "display_name": "<TBD>",
-      "url": "<TBD>",
-      "required_review": "<TBD>",
-      "note_required": "<TBD>",
-      "order": "<TBD>"
+      "id": "<DASHBOARD_3_ID>",
+      "display_name": "<DASHBOARD_3_NAME>",
+      "url": "<DASHBOARD_3_URL>",
+      "required_review": true,
+      "note_required": false,
+      "order": 3
     },
     {
-      "id": "<TBD>",
-      "display_name": "<TBD>",
-      "url": "<TBD>",
-      "required_review": "<TBD>",
-      "note_required": "<TBD>",
-      "order": "<TBD>"
+      "id": "<DASHBOARD_4_ID>",
+      "display_name": "<DASHBOARD_4_NAME>",
+      "url": "<DASHBOARD_4_URL>",
+      "required_review": true,
+      "note_required": false,
+      "order": 4
     },
     {
-      "id": "<TBD>",
-      "display_name": "<TBD>",
-      "url": "<TBD>",
-      "required_review": "<TBD>",
-      "note_required": "<TBD>",
-      "order": "<TBD>"
+      "id": "<DASHBOARD_5_ID>",
+      "display_name": "<DASHBOARD_5_NAME>",
+      "url": "<DASHBOARD_5_URL>",
+      "required_review": true,
+      "note_required": false,
+      "order": 5
     },
     {
-      "id": "<TBD>",
-      "display_name": "<TBD>",
-      "url": "<TBD>",
-      "required_review": "<TBD>",
-      "note_required": "<TBD>",
-      "order": "<TBD>"
+      "id": "<DASHBOARD_6_ID>",
+      "display_name": "<DASHBOARD_6_NAME>",
+      "url": "<DASHBOARD_6_URL>",
+      "required_review": true,
+      "note_required": false,
+      "order": 6
     },
     {
-      "id": "<TBD>",
-      "display_name": "<TBD>",
-      "url": "<TBD>",
-      "required_review": "<TBD>",
-      "note_required": "<TBD>",
-      "order": "<TBD>"
+      "id": "<DASHBOARD_7_ID>",
+      "display_name": "<DASHBOARD_7_NAME>",
+      "url": "<DASHBOARD_7_URL>",
+      "required_review": true,
+      "note_required": false,
+      "order": 7
     }
   ],
+  # ============================================================
+  # Open All
+  # When the reviewer chooses "Open All", open every configured
+  # dashboard, including any dashboard that may later be marked
+  # as optional.
+  # ============================================================
   "open_all": {
-    "include_optional": "<TBD>"
+    "include_optional": true
   }
 }

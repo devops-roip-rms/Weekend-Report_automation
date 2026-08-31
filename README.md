@@ -223,8 +223,8 @@ TAG
 .github/workflows/quality-gates.yml
 .github/workflows/build-image.yml
 .gitlab-ci.yml
-.gitlab/ci/quality.yml
-.gitlab/ci/image.yml
+.gitlab-ci-cd/quality.yml
+.gitlab-ci-cd/image.yml
 deploy/docker/compose.ci.yml
 scripts/ci.py
 scripts/ci_e2e.py

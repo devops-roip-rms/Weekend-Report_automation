@@ -75,7 +75,13 @@ def save_splunk_note(
 ):
     try:
         note_id = persist_splunk_note(
-            repo, config, run_id, dashboard_id, reviewer, payload.get("note", "")
+            repo,
+            config,
+            run_id,
+            dashboard_id,
+            reviewer,
+            payload.get("note", ""),
+            reviewed=bool(payload.get("reviewed", False)),
         )
     except InvalidRunTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

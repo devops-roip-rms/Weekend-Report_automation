@@ -1,10 +1,88 @@
 {
   "doctor": {
-    "mode": "manual",
+    "mode": "api",
+    "api": {
+      "site1_url": "https://doctor-site1.example.invalid/health",
+      "site2_url": "https://doctor-site2.example.invalid/health",
+      "schema": "normalized_fixture_v1"
+    },
+    "expected_services": [
+      "service-01",
+      "service-02",
+      "service-03",
+      "service-04",
+      "service-05",
+      "service-06",
+      "service-07",
+      "service-08",
+      "service-09",
+      "service-10",
+      "service-11",
+      "service-12",
+      "service-13",
+      "service-14",
+      "service-15",
+      "service-16",
+      "service-17"
+    ],
+    "validation": {
+      "healthy_status": "PASS",
+      "unhealthy_status": "ERROR",
+      "unhealthy_reason_required": true,
+      "all_healthy_status": "PASS",
+      "any_unhealthy_status": "MANUAL_REVIEW",
+      "missing_expected_service_status": "ERROR"
+    },
     "manual_review": {
-      "url": "https://example.invalid/doctor",
-      "instructions": "Fixture manual review only",
-      "note_required": false
+      "required_when": "any_unhealthy",
+      "note_required": true,
+      "instructions": "Review every unhealthy DOCTOR service and its reported reason before making the final decision."
+    },
+    "fixture_actual": {
+      "sites": {
+        "site1": {
+          "services": {
+            "service-01": {"healthy": true},
+            "service-02": {"healthy": true},
+            "service-03": {"healthy": true},
+            "service-04": {"healthy": true},
+            "service-05": {"healthy": true},
+            "service-06": {"healthy": true},
+            "service-07": {"healthy": true},
+            "service-08": {"healthy": true},
+            "service-09": {"healthy": true},
+            "service-10": {"healthy": true},
+            "service-11": {"healthy": true},
+            "service-12": {"healthy": true},
+            "service-13": {"healthy": true},
+            "service-14": {"healthy": true},
+            "service-15": {"healthy": true},
+            "service-16": {"healthy": true},
+            "service-17": {"healthy": true}
+          }
+        },
+        "site2": {
+          "services": {
+            "service-01": {"healthy": true},
+            "service-02": {"healthy": true},
+            "service-03": {"healthy": true},
+            "service-04": {"healthy": true},
+            "service-05": {"healthy": true},
+            "service-06": {"healthy": true},
+            "service-07": {"healthy": true},
+            "service-08": {"healthy": true},
+            "service-09": {"healthy": true},
+            "service-10": {"healthy": true},
+            "service-11": {"healthy": true},
+            "service-12": {"healthy": true},
+            "service-13": {"healthy": true},
+            "service-14": {"healthy": true},
+            "service-15": {"healthy": true},
+            "service-16": {"healthy": true},
+            "service-17": {"healthy": true}
+          }
+        }
+      }
     }
   }
 }

@@ -6,7 +6,7 @@ This repository implements the Weekend Report Automation from the final authorit
 
 - Do not invent production facts. Use only `"<TBD>"`, `"<TO_VERIFY>"`, and schema-approved `"<NOT_APPLICABLE>"`.
 - Do not connect to or mutate production systems unless the owner supplies and approves real configuration.
-- The Recording synthetic test is state-changing. Keep production execution blocked until create/delete/cleanup definitions are supplied and approved.
+- The Recording synthetic test is state-changing. Keep production execution blocked until Manager start/stop and cleanup-verification definitions are supplied and approved.
 - Collectors collect raw state and evidence. Validators decide statuses.
 - Reviewer notes are additive. Never rewrite automated statuses because of reviewer approval.
 - Every module, result, and Splunk dashboard note must be persisted, frozen in `review_snapshot.json`, and included in the final PDF.

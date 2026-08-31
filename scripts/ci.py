@@ -83,11 +83,7 @@ def _iter_tests(suite: unittest.TestSuite) -> Iterable[unittest.TestCase]:
 
 
 def gate_contract() -> None:
-    _run(
-        _python_module(
-            "unittest", "discover", "-s", "tests/contract", "-p", "test_*.py", "-v"
-        )
-    )
+    _run(_python_module("unittest", "discover", "-s", "tests/contract", "-p", "test_*.py", "-v"))
 
 
 def gate_integration() -> None:
@@ -98,9 +94,7 @@ def gate_integration() -> None:
         top_level_dir=str(ROOT),
     )
     selected = unittest.TestSuite(
-        test
-        for test in _iter_tests(discovered)
-        if "test_postgres_concurrency" not in test.id()
+        test for test in _iter_tests(discovered) if "test_postgres_concurrency" not in test.id()
     )
     result = unittest.TextTestRunner(verbosity=2).run(selected)
     if not result.wasSuccessful():

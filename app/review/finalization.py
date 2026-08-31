@@ -83,7 +83,7 @@ def _splunk_review_errors(config: dict[str, Any], notes: list[ReviewNote]) -> li
         if not isinstance(dashboard_id, str):
             continue
         note = notes_by_dashboard.get(dashboard_id)
-        if dashboard.get("required_review") and note is None:
+        if dashboard.get("required_review") and not _dashboard_reviewed(note):
             errors.append(
                 f"Splunk dashboard {dashboard_id} must be reviewed and saved before APPROVE."
             )
@@ -152,10 +152,20 @@ def _approval_status_policy_errors(
     for status, grouped in _results_by_status(results).items():
         action = policy.get(status.value, "ALLOW")
         if action == "BLOCK":
-            errors.append(
-                f"APPROVE is blocked by configured policy for {status.value} "
-                f"({len(grouped)} result(s))."
-            )
+            blocked = [
+                result
+                for result in grouped
+                if not _reviewable_doctor_health_error_is_covered(
+                    result,
+                    results,
+                    notes_by_result,
+                )
+            ]
+            if blocked:
+                errors.append(
+                    f"APPROVE is blocked by configured policy for {status.value} "
+                    f"({len(blocked)} result(s))."
+                )
         elif action == "REQUIRE_NOTE":
             for result in grouped:
                 if not _has_text(notes_by_result.get(result.id)):
@@ -190,5 +200,37 @@ def _results_by_status(results: list[CheckResult]) -> dict[CheckStatus, list[Che
     return dict(grouped)
 
 
+def _reviewable_doctor_health_error_is_covered(
+    result: CheckResult,
+    results: list[CheckResult],
+    notes_by_result: dict[int | None, ReviewNote],
+) -> bool:
+    module_result = next(
+        (
+            item
+            for item in results
+            if item.module == "doctor"
+            and item.check_id == "doctor.module_status"
+            and item.status == CheckStatus.MANUAL_REVIEW
+            and item.metadata.get("doctor_manual_review_path") is True
+        ),
+        None,
+    )
+
+    return (
+        result.module == "doctor"
+        and result.check_id == "doctor.service.health"
+        and result.status == CheckStatus.ERROR
+        and result.metadata.get("doctor_error_type") == "health_issue"
+        and result.metadata.get("reviewable_health_issue") is True
+        and module_result is not None
+        and _has_text(notes_by_result.get(module_result.id))
+    )
+
+
 def _has_text(note: ReviewNote | None) -> bool:
     return bool(note and note.note.strip())
+
+
+def _dashboard_reviewed(note: ReviewNote | None) -> bool:
+    return bool(note and note.reviewed)

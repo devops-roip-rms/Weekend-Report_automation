@@ -3,12 +3,12 @@
   "defaults": {
     "required": true,
     "expected": {
-      "service_state": "active",
+      "service_state": "running",
       "task_state_policy": {
         "failed": "FAIL",
         "rejected": "FAIL",
         "restarting": "FAIL",
-        "starting": "IGNORE"
+        "starting": "WARNING"
       }
     }
   },
@@ -68,7 +68,7 @@
             },
             "image": "example/recording-gateway:fixture",
             "service_mode": "replicated",
-            "service_state": "active",
+            "service_state": "running",
             "task_states": [
               {
                 "id": "task1",
@@ -118,7 +118,7 @@
             },
             "image": "example/recording-gateway:fixture",
             "service_mode": "replicated",
-            "service_state": "active",
+            "service_state": "running",
             "task_states": [
               {
                 "id": "task1",

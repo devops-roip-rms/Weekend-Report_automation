@@ -137,7 +137,8 @@ def _note_lines(notes: list[dict[str, Any]]) -> list[str]:
         lines.extend(
             [
                 f"note_id: {note.get('id')} | scope: {note.get('scope')} | target: {target}",
-                f"author: {note.get('author')} | updated_at: {note.get('updated_at')}",
+                f"author: {note.get('author')} | reviewed: {note.get('reviewed')} | "
+                f"updated_at: {note.get('updated_at')}",
                 f"note: {note.get('note')}",
                 "",
             ]
@@ -162,6 +163,7 @@ def _splunk_lines(dashboards: list[dict[str, Any]], notes: list[dict[str, Any]])
                 f"required_review: {dashboard.get('required_review')} | "
                 f"note_required: {dashboard.get('note_required')} | "
                 f"order: {dashboard.get('order')}",
+                f"reviewed: {note.get('reviewed', False)}",
                 f"note: {note.get('note', '')}",
                 "",
             ]

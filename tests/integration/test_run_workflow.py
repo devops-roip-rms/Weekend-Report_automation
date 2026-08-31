@@ -55,6 +55,7 @@ class RunWorkflowTests(unittest.TestCase):
                     "reviewer",
                     f"note for {dashboard['id']}",
                     dashboard_id=dashboard["id"],
+                    reviewed=True,
                 )
             )
 
@@ -101,16 +102,19 @@ class RunWorkflowTests(unittest.TestCase):
                 "reviewer",
                 ReviewDecision.APPROVE,
             )
-        approval_config = self.approval_config_with_result_notes_for_failures()
         snapshot = finalize_run(
             self.repo,
             self.evidence,
-            approval_config,
+            self.config,
             run.run_id,
             "reviewer",
-            ReviewDecision.APPROVE,
+            ReviewDecision.REJECT,
         )
-        self.assertEqual(self.repo.get_run(run.run_id).state, RunState.APPROVED)
+
+        self.assertEqual(
+            self.repo.get_run(run.run_id).state,
+            RunState.REJECTED,
+        )
         self.assertTrue(snapshot["site_summaries"])
         self.assertTrue(snapshot["module_summaries"])
         self.assertTrue(snapshot["parity_summaries"])
@@ -159,7 +163,7 @@ class RunWorkflowTests(unittest.TestCase):
                 self.approval_config_with_result_notes_for_failures(),
                 run.run_id,
                 "reviewer",
-                ReviewDecision.APPROVE,
+                ReviewDecision.REJECT,
                 fail_pdf=True,
             )
         self.assertTrue(self.repo.get_run(run.run_id).final_snapshot_path)

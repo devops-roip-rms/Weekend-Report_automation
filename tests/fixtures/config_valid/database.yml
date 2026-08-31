@@ -1,7 +1,14 @@
 {
   "collection_mode": "fixture",
-  "adapter": "existing_sync_function",
-  "function_reference": "tests.fixtures.database_sync_function",
+  "adapter": "existing_powershell_script",
+  "script": {
+    "path": "scripts/database/database_sync_check.ps1",
+    "execution_timeout_seconds": 300
+  },
+  "algorithm": {
+    "description": "Fixture result for the approved existing database synchronization script boundary.",
+    "rewrite_algorithm": false
+  },
   "fixture_actual": {
     "sites": {
       "site1": {
@@ -13,7 +20,7 @@
         "cleanup_complete": true,
         "errors": [],
         "evidence": {
-          "algorithm": "temp table create/replicate/delete/replicate fixture"
+          "algorithm": "approved script fixture"
         }
       },
       "site2": {
@@ -25,7 +32,7 @@
         "cleanup_complete": true,
         "errors": [],
         "evidence": {
-          "algorithm": "temp table create/replicate/delete/replicate fixture"
+          "algorithm": "approved script fixture"
         }
       }
     }

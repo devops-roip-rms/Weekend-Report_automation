@@ -130,6 +130,7 @@ class ReviewNote:
     module: str | None = None
     result_id: int | None = None
     dashboard_id: str | None = None
+    reviewed: bool = False
     id: int | None = None
     created_at: str | None = None
     updated_at: str | None = None

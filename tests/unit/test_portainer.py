@@ -121,8 +121,7 @@ class PortainerTests(unittest.TestCase):
         health = [
             result
             for result in results
-            if result.check_id == "portainer.service.healthy_replicas"
-            and result.site == "site1"
+            if result.check_id == "portainer.service.healthy_replicas" and result.site == "site1"
         ][0]
         self.assertEqual(health.status, CheckStatus.ERROR)
         self.assertIn("health signal unavailable", health.message)
@@ -136,8 +135,7 @@ class PortainerTests(unittest.TestCase):
                 task_state = [
                     result
                     for result in results
-                    if result.check_id == "portainer.service.task_state"
-                    and result.site == "site1"
+                    if result.check_id == "portainer.service.task_state" and result.site == "site1"
                 ][0]
                 self.assertEqual(task_state.status, CheckStatus.FAIL)
 
@@ -148,19 +146,6 @@ class PortainerTests(unittest.TestCase):
         task_state = [
             result
             for result in results
-            if result.check_id == "portainer.service.task_state" and result.site == "site1"
-        ][0]
-        self.assertEqual(task_state.status, CheckStatus.PASS)
-
-        policy_config = copy.deepcopy(self.config)
-        policy_config["portainer_expected"]["defaults"]["expected"]["task_state_policy"][
-            "starting"
-        ] = "WARNING"
-        task_state = [
-            result
-            for result in PortainerValidator().validate(
-                {"sites": sites, "errors": []}, policy_config, self.ctx
-            )
             if result.check_id == "portainer.service.task_state" and result.site == "site1"
         ][0]
         self.assertEqual(task_state.status, CheckStatus.WARNING)
@@ -174,7 +159,7 @@ class PortainerTests(unittest.TestCase):
                 "desired_replicas": 1,
                 "running_replicas": 1,
                 "healthy_replicas": 1,
-                "service_state": "active",
+                "service_state": "running",
             },
         }
         resolved = resolve_portainer_expected(config)
@@ -186,8 +171,7 @@ class PortainerTests(unittest.TestCase):
         optional = [
             result
             for result in results
-            if result.check_id == "portainer.service.exists"
-            and result.target == "optional-worker"
+            if result.check_id == "portainer.service.exists" and result.target == "optional-worker"
         ]
         self.assertEqual([result.status for result in optional], [CheckStatus.SKIPPED] * 2)
 
@@ -286,7 +270,10 @@ class PortainerTests(unittest.TestCase):
                 return httpx.Response(502, json={"temporary": True})
             return httpx.Response(200, json={"ok": True})
 
-        client = PortainerClient(_settings(retries=1), transport=httpx.MockTransport(handler))
+        client = PortainerClient(
+            _settings(retries=2),
+            transport=httpx.MockTransport(handler),
+        )
         self.assertEqual(client.get_json("/api/status"), {"ok": True})
         self.assertEqual(calls, ["GET", "GET"])
 
@@ -376,9 +363,7 @@ class PortainerTests(unittest.TestCase):
         results = self.validate_sites(sites)
         parity = SiteParityValidator().validate({"results": results}, self.config, self.ctx)
         running_failures = [
-            result
-            for result in results
-            if result.check_id == "portainer.service.running_replicas"
+            result for result in results if result.check_id == "portainer.service.running_replicas"
         ]
         parity_running = [
             result for result in parity if result.check_id == "parity.portainer.running_replicas"

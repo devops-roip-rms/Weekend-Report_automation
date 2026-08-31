@@ -82,9 +82,7 @@ def main() -> int:
                 note_texts.append(text)
 
             general_note = "CI E2E general review note"
-            repo.save_note(
-                ReviewNote(run.run_id, NoteScope.GENERAL, "ci-reviewer", general_note)
-            )
+            repo.save_note(ReviewNote(run.run_id, NoteScope.GENERAL, "ci-reviewer", general_note))
             note_texts.append(general_note)
 
             snapshot = finalize_run(

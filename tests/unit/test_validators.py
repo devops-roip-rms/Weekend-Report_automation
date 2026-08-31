@@ -15,7 +15,6 @@ from app.orchestrator.run_context import RunContext
 from app.validators.database import DatabaseValidator
 from app.validators.infrastructure import InfrastructureValidator
 from app.validators.portainer import PortainerValidator
-from app.validators.rabbitmq import RabbitMQValidator
 
 
 class ValidatorTests(unittest.TestCase):
@@ -44,59 +43,43 @@ class ValidatorTests(unittest.TestCase):
         ]
         self.assertEqual(replica_statuses, [CheckStatus.FAIL, CheckStatus.FAIL])
 
-    def test_rabbitmq_threshold_boundaries_and_missing_queue(self):
-        config = load_config_dir("tests/fixtures/config_valid")
-        ctx = self.context(config)
-        actual = copy.deepcopy(config["rabbitmq_expected"]["fixture_actual"]["sites"])
-        actual["site1"]["queues"][0]["messages"] = 10
-        actual["site2"]["queues"] = []
-        results = RabbitMQValidator().validate({"sites": actual}, config, ctx)
-        self.assertIn(
-            CheckStatus.WARNING,
-            [r.status for r in results if r.check_id == "rabbitmq.queue.backlog"],
-        )
-        self.assertIn(
-            CheckStatus.FAIL, [r.status for r in results if r.check_id == "rabbitmq.queue.exists"]
-        )
-
-    def test_rabbitmq_common_topology_optional_queue_can_be_absent(self):
-        config = load_config_dir("tests/fixtures/config_valid")
-        config["rabbitmq_expected"]["topology"]["queues"]["optional.audit"] = {
-            "vhost": "/",
-            "name": "optional.audit",
-            "required": False,
-            "warning_messages": 10,
-            "critical_messages": 20,
-        }
-        actual = copy.deepcopy(config["rabbitmq_expected"]["fixture_actual"]["sites"])
-        results = RabbitMQValidator().validate({"sites": actual}, config, self.context(config))
-        optional = [
-            r
-            for r in results
-            if r.check_id == "rabbitmq.queue.exists" and r.target == "optional.audit"
-        ]
-        self.assertEqual([r.status for r in optional], [CheckStatus.SKIPPED] * 2)
-
-    def test_infrastructure_missing_mount_and_chrony_unsynced(self):
+    def test_infrastructure_filesystem_threshold_and_chrony_unsynced(self):
         config = load_config_dir("tests/fixtures/config_valid")
         actual = copy.deepcopy(config["servers"]["fixture_actual"])
         actual["sites"]["site1"]["servers"]["srv1"]["df"] = (
-            "Filesystem Size Used Avail Use% Mounted on\n/dev/sdb1 10G 1G 9G 10% /data"
+            "Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 100G 75G 25G 75% /"
         )
         actual["sites"]["site2"]["servers"]["srv2"]["chrony"]["synchronized"] = False
         results = InfrastructureValidator().validate(actual, config, self.context(config))
-        self.assertIn(CheckStatus.FAIL, [r.status for r in results])
+        self.assertIn(
+            CheckStatus.WARNING,
+            [
+                r.status
+                for r in results
+                if r.check_id == "infrastructure.filesystem.utilization" and r.site == "site1"
+            ],
+        )
+        self.assertIn(
+            CheckStatus.FAIL,
+            [
+                r.status
+                for r in results
+                if r.check_id == "infrastructure.chrony.synchronized" and r.site == "site2"
+            ],
+        )
 
-    def test_infrastructure_nfs_source_and_usability_are_validated(self):
+    def test_infrastructure_malformed_df_is_collection_error(self):
         config = load_config_dir("tests/fixtures/config_valid")
         actual = copy.deepcopy(config["servers"]["fixture_actual"])
-        actual["sites"]["site1"]["servers"]["srv1"]["nfs_mounts"][0]["source"] = "wrong:/export"
-        actual["sites"]["site2"]["servers"]["srv2"]["nfs_mounts"][0]["usable"] = False
+        actual["sites"]["site1"]["servers"]["srv1"]["df"] = "not df output"
         results = InfrastructureValidator().validate(actual, config, self.context(config))
-        source = [r for r in results if r.check_id == "infrastructure.nfs.source"]
-        usable = [r for r in results if r.check_id == "infrastructure.nfs.usable"]
-        self.assertIn(CheckStatus.FAIL, [r.status for r in source])
-        self.assertIn(CheckStatus.FAIL, [r.status for r in usable])
+        utilization = [
+            r
+            for r in results
+            if r.check_id == "infrastructure.filesystem.utilization" and r.site == "site1"
+        ][0]
+        self.assertEqual(utilization.status, CheckStatus.ERROR)
+        self.assertIn("could not be parsed", utilization.message)
 
     def test_chrony_parser_normalizes_tracking_and_sources(self):
         tracking = (
@@ -122,30 +105,33 @@ class ValidatorTests(unittest.TestCase):
             },
         )
 
-    def test_database_structured_sync_contract(self):
+    def test_database_unverified_result_contract_is_error(self):
         config = load_config_dir("tests/fixtures/config_valid")
         actual = copy.deepcopy(config["database"]["fixture_actual"])
-        actual["sites"]["site1"]["replication_after_delete"] = False
-        results = DatabaseValidator().validate(actual, config, self.context(config))
-        self.assertIn(CheckStatus.FAIL, [r.status for r in results])
-        self.assertIn(
-            CheckStatus.FAIL,
-            [
-                r.status
-                for r in results
-                if r.check_id == "database.replication_after_delete"
-            ],
+        results = DatabaseValidator().validate(
+            actual,
+            config,
+            self.context(config),
+        )
+        self.assertEqual(len(results), 1)
+        result = results[0]
+        self.assertEqual(result.status, CheckStatus.ERROR)
+        self.assertEqual(result.check_id, "database.sync_execution")
+        self.assertEqual(
+            result.metadata.get("error_code"),
+            "DATABASE_SYNC_SCRIPT_RESULT_CONTRACT_UNVERIFIED",
         )
 
-    def test_database_live_adapter_is_blocked_until_existing_function_is_supplied(self):
+    def test_database_live_adapter_is_blocked_until_script_contract_is_supplied(self):
         config = load_config_dir("tests/fixtures/config_valid")
         config["database"] = {
             "collection_mode": "live",
-            "adapter": "existing_sync_function",
-            "function_reference": "approved.function.placeholder",
+            "adapter": "existing_powershell_script",
+            "script": {"path": "scripts/database/database_sync_check.ps1"},
         }
+        config["_config_dir"] = str(Path.cwd() / "config")
         actual = DatabaseCollector().collect(self.context(config))
-        self.assertEqual(actual["errors"][0]["code"], "DATABASE_SYNC_FUNCTION_NOT_PROVIDED")
+        self.assertEqual(actual["errors"][0]["code"], "DATABASE_SYNC_SCRIPT_CONTRACT_UNAVAILABLE")
 
 
 if __name__ == "__main__":

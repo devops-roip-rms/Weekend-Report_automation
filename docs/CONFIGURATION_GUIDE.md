@@ -158,16 +158,15 @@ Portainer is read-only.
 
 - `collection_mode: fixture|live`;
 - Management API connections;
-- common vhosts;
-- queues;
-- exchanges;
-- bindings;
-- defaults;
-- per-site overrides.
+- all-queue count validation;
+- configured queue recheck attempts/delay;
+- expected zero values for ready/unacked/total counts;
+- all-node resource-state validation;
+- per-site required flags.
 
-Expected topology/threshold policy belongs in YAML.
+Expected queue-count and node-health policy belongs in YAML.
 
-Actual topology/metrics belong to collector output/evidence.
+Actual queues, node resources, recheck snapshots, and Management API errors belong to collector output/evidence.
 
 ## 9. Recording
 
@@ -177,9 +176,11 @@ Do not configure device create/delete.
 
 Approved live configuration must define:
 
-- WebApp count/status query;
-- backend count query;
-- authentication;
+- Manager WebApp URL/auth/action contract;
+- Site 1 WebApp read-only count observation;
+- Site 2 WebApp read-only count observation;
+- Site 1 server read-only count observation;
+- Site 2 server read-only count observation;
 - suitable-device selection;
 - start action;
 - stop action;
@@ -192,7 +193,15 @@ Unknown state after a state-changing operation requires `RECOVERY_REQUIRED`.
 
 ## 10. Database
 
-`config/database.yml` defines the adapter contract for the owner-supplied existing sync function.
+`config/database.yml` defines the adapter contract for the owner-supplied existing PowerShell synchronization script.
+
+The checked-in script path is:
+
+```text
+scripts/database/database_sync_check.ps1
+```
+
+An empty script is a production blocker because runtime, arguments, exit-code semantics, cleanup behavior, and structured result mapping cannot be verified.
 
 The adapter must return structured results for:
 
@@ -212,29 +221,20 @@ Do not invent exit-code semantics or rewrite the owner algorithm.
 - server inventory;
 - SSH policy;
 - filesystems;
-- NFS mappings;
 - Chrony/NTP expected state;
 - thresholds.
 
-Live SSH remains blocked until targets, credentials, host verification, and commands are approved.
+Live SSH remains blocked until targets, credentials, strict known-host verification, and read-only commands are approved.
 
 ## 12. DOCTOR
 
-Choose explicitly:
-
-```text
-manual
-```
-
-or:
-
-```text
-api
-```
+Current `config/doctor.yml` is API mode and expects exactly 17 services per site.
 
 API mode requires a verified endpoint/schema/auth/status contract.
 
-Manual mode requires review instructions and policy.
+If live API schema/auth is not verified, the live adapter remains blocked and normalized contract fixtures/tests are the only safe execution path.
+
+Reviewable service-health findings may roll the DOCTOR module to `MANUAL_REVIEW`; the underlying service-level `ERROR` remains unchanged in evidence/reporting.
 
 ## 13. Splunk
 
@@ -266,13 +266,17 @@ Final confirmation:
 
 ## 15. Docker Runtime Values
 
-`env.example` / `.env.example` are templates only.
+`.env.example` and `deploy/docker/.env.example` are templates only.
 
 Compose must not run production using literal:
 
 ```text
 <TBD>
 <TO_VERIFY>
+<SERVICE_01>
+<DASHBOARD_1_ID>
+<VERIFY_AUTH_ENUM>
+<TO_IMPLEMENT>
 UNKNOWN
 ```
 

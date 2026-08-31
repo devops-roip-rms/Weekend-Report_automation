@@ -184,71 +184,51 @@ Both sites being identically unhealthy must not become PASS because they match e
 ### `rabbitmq.collection`
 
 Actual:
-- Management API or fixture actuals.
+- read-only RabbitMQ Management API or fixture actuals.
 
 ERROR:
-- live collection blocked/unconfigured;
-- API unavailable;
+- configuration/runtime value missing;
+- authentication/TLS/timeout/API unavailable;
 - malformed response.
 
-### Topology existence
+Evidence:
+- sanitized Management API error payloads;
+- queue snapshots;
+- node resource payloads.
 
-Applies to:
+### `rabbitmq.queue.counts`
 
-- vhost;
-- queue;
-- exchange;
-- binding.
+Actual:
+- observed live queues;
+- `ready`;
+- `unacked`;
+- `total`;
+- recheck snapshots/check count.
 
-PASS:
-- required object exists/matches.
-
-FAIL:
-- required object missing.
-
-SKIPPED:
-- explicitly optional object absent.
-
-ERROR:
-- topology unreliable.
-
-### Queue properties / consumers / backlog
+Expected:
+- all observed queues have zero ready/unacked/total messages after configured rechecks.
 
 PASS:
-- properties match;
-- consumers >= minimum;
-- backlog below warning.
-
-WARNING:
-- warning range.
-
-FAIL:
-- property mismatch;
-- consumers below minimum;
-- backlog >= critical.
+- all counts are zero.
 
 ERROR:
-- metric/property unavailable.
+- queue count is missing/malformed;
+- any count remains non-zero after configured rechecks unless policy explicitly changes the status.
 
-### Exchange properties
+### `rabbitmq.node.file_descriptors`
+### `rabbitmq.node.socket_descriptors`
+### `rabbitmq.node.erlang_processes`
+### `rabbitmq.node.disk_space`
+
+Expected:
+- configured resource state is `green`.
 
 PASS:
-- type/durable/autodelete match.
-
-FAIL:
-- reliable mismatch.
+- collected resource state is `green`.
 
 ERROR:
-- unreliable collection.
-
-### Node alarms
-
-FAIL:
-- memory alarm active;
-- disk alarm active.
-
-ERROR:
-- alarm state unavailable.
+- collected state is non-green under current policy;
+- required green-state mapping is unavailable.
 
 ## 5. Recording
 
@@ -271,16 +251,12 @@ baseline
 Subresults include:
 
 - device selection;
-- WebApp baseline;
-- backend baseline;
+- pre-start verification;
+- four baselines;
 - start action;
-- device started;
-- WebApp increment;
-- backend increment;
+- four after-start observations;
 - stop action;
-- device stopped;
-- WebApp restored;
-- backend restored;
+- four after-stop observations;
 - cleanup;
 - module status.
 
@@ -288,11 +264,12 @@ PASS:
 - reliable expected transition.
 
 FAIL:
-- reliable bad behavior/mismatch/cleanup failure.
+- reliable bad behavior/mismatch before cleanup risk is introduced.
 
 ERROR:
 - unreliable state/unreachable/parse/unknown state;
 - live contract not approved;
+- cleanup failure;
 - recovery required.
 
 SKIPPED:
@@ -311,11 +288,12 @@ No automatic replay.
 ### `database.sync_execution`
 
 Actual:
-- owner-supplied adapter result.
+- owner-supplied PowerShell script adapter result.
 
 ERROR:
-- function not supplied;
-- function exception;
+- script missing/empty;
+- script runtime/result contract unverified;
+- script exception;
 - malformed result;
 - unresolved live config.
 
@@ -364,20 +342,6 @@ FAIL:
 ERROR:
 - actual state unavailable.
 
-### NFS
-
-PASS:
-- required mount exists, expected source matches, usable, utilization healthy.
-
-WARNING:
-- warning range.
-
-FAIL:
-- missing/source mismatch/unusable/critical utilization.
-
-ERROR:
-- actual state unavailable.
-
 ### Chrony
 
 PASS:
@@ -396,23 +360,43 @@ ERROR:
 
 ## 8. DOCTOR
 
-Manual mode:
+API mode expects exactly 17 services per site.
 
-```text
-MANUAL_REVIEW
-```
-
-API mode requires an approved validation contract.
+### `doctor.collection`
 
 ERROR:
-- invalid config/API failure.
+- transport/API/authentication/timeout/schema/collection failure;
+- malformed site payload.
 
-No API PASS/WARNING/FAIL semantics may be invented.
+### `doctor.service.health`
+
+PASS:
+- expected service is present and healthy.
+
+ERROR:
+- expected service is unhealthy;
+- expected service is missing;
+- health state is unknown/unparseable.
+
+Only explicitly marked unhealthy/missing service-health findings are reviewable health issues.
+
+### `doctor.module_status`
+
+PASS:
+- all 17 expected services are healthy on both sites.
+
+MANUAL_REVIEW:
+- one or more service-level health findings are reviewable health issues.
+
+ERROR:
+- any technical/transport/API/authentication/timeout/schema/collection error exists.
+
+The underlying `doctor.service.health` `ERROR` remains recorded as `ERROR` in evidence and reporting.
 
 ## 9. Splunk
 
 Actual:
-- human dashboard review.
+- persisted human dashboard review state.
 
 Expected:
 - configured dashboard definitions/review-note policy.
@@ -424,7 +408,9 @@ Finalization ERROR/block:
 - required dashboard review/note missing according to policy.
 
 Evidence:
-- saved dashboard note in database/snapshot.
+- saved dashboard review acknowledgment and note in database/snapshot.
+
+Opening a dashboard URL is not review completion.
 
 ## 10. Review / Finalization
 
@@ -451,6 +437,14 @@ Before APPROVE enforce configured:
 - manual-review acknowledgments;
 - Recording cleanup acknowledgment;
 - status-specific approval policy.
+
+Narrow DOCTOR finalization exception:
+
+- a `doctor.service.health` `ERROR` may be excluded from the `ERROR: BLOCK` finalization count only when it is explicitly marked as a reviewable health issue;
+- the same result set contains `doctor.module_status=MANUAL_REVIEW`;
+- the reviewer has saved the required acknowledgment/note on that module-level manual-review result.
+
+This exception does not apply to DOCTOR transport/API/authentication/timeout/schema/collection errors, configuration errors, infrastructure errors, RabbitMQ errors, Recording errors, Database errors, Portainer errors, or any unrelated `ERROR`.
 
 FAIL:
 - explicit status policy blocks approval.

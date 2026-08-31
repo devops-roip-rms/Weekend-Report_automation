@@ -41,13 +41,19 @@
     if (!endpoint) {
       return null;
     }
+    const card = textarea.closest("[data-splunk-dashboard-card]");
+    const reviewed = card?.querySelector("[data-splunk-reviewed]")?.checked;
+    const payload = { note: textarea.value };
+    if (typeof reviewed === "boolean") {
+      payload.reviewed = reviewed;
+    }
     const response = await fetch(endpoint, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         ...csrfHeaders(),
       },
-      body: JSON.stringify({ note: textarea.value }),
+      body: JSON.stringify(payload),
     });
     if (!response.ok) {
       const body = await readError(response);
@@ -214,7 +220,7 @@
     }
     try {
       if (button.dataset.action === "open-dashboards") {
-        const dashboards = Array.from(document.querySelectorAll("[data-dashboard-url]"));
+        const dashboards = Array.from(document.querySelectorAll("[data-dashboard-open-all]"));
         dashboards.forEach((anchor) => {
           window.open(anchor.href, "_blank", "noopener,noreferrer");
         });

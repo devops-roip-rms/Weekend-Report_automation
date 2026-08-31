@@ -16,19 +16,10 @@
           "ssh_port": 22,
           "filesystems": [
             {
-              "filesystem": "/dev/sda1",
-              "mountpoint": "/",
-              "warning_percent": 80,
-              "critical_percent": 90,
-              "required": true
-            }
-          ],
-          "nfs_mounts": [
-            {
-              "source": "nfs-fixture:/exports/recordings",
-              "mountpoint": "/mnt/recordings",
+              "path": "/",
+              "command": "df -h /",
               "warning_percent": 70,
-              "critical_percent": 85,
+              "critical_percent": 80,
               "required": true
             }
           ],
@@ -53,19 +44,10 @@
           "ssh_port": 22,
           "filesystems": [
             {
-              "filesystem": "/dev/sda1",
-              "mountpoint": "/",
-              "warning_percent": 80,
-              "critical_percent": 90,
-              "required": true
-            }
-          ],
-          "nfs_mounts": [
-            {
-              "source": "nfs-fixture:/exports/recordings",
-              "mountpoint": "/mnt/recordings",
+              "path": "/",
+              "command": "df -h /",
               "warning_percent": 70,
-              "critical_percent": 85,
+              "critical_percent": 80,
               "required": true
             }
           ],
@@ -88,20 +70,11 @@
         "servers": {
           "srv1": {
             "reachable": true,
-            "df": "Filesystem Size Used Avail Use% Mounted on\\n/dev/sda1 100G 20G 80G 20% /",
-            "nfs_mounts": [
-              {
-                "source": "nfs-fixture:/exports/recordings",
-                "mountpoint": "/mnt/recordings",
-                "destination": "/mnt/recordings",
-                "reachable": true,
-                "usable": true,
-                "utilization_percent": 30
-              }
-            ],
+            "df": "Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 100G 20G 80G 20% /",
             "chrony": {
               "synchronized": true,
               "source": "fixture-ntp",
+              "timezone": "UTC",
               "offset": 0.1
             }
           }
@@ -111,20 +84,11 @@
         "servers": {
           "srv2": {
             "reachable": true,
-            "df": "Filesystem Size Used Avail Use% Mounted on\\n/dev/sda1 100G 20G 80G 20% /",
-            "nfs_mounts": [
-              {
-                "source": "nfs-fixture:/exports/recordings",
-                "mountpoint": "/mnt/recordings",
-                "destination": "/mnt/recordings",
-                "reachable": true,
-                "usable": true,
-                "utilization_percent": 30
-              }
-            ],
+            "df": "Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 100G 20G 80G 20% /",
             "chrony": {
               "synchronized": true,
               "source": "fixture-ntp",
+              "timezone": "UTC",
               "offset": 0.1
             }
           }

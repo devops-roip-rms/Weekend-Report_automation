@@ -1,15 +1,46 @@
 {
   "doctor": {
-    "mode": "<TBD>",
+    "mode": "api",
+
     "api": {
       "site1_url": "<TBD>",
       "site2_url": "<TBD>",
-      "schema": "<TBD>"
+      "schema": "<TO_IMPLEMENT>"
     },
+
+    "expected_services": [
+      "<SERVICE_01>",
+      "<SERVICE_02>",
+      "<SERVICE_03>",
+      "<SERVICE_04>",
+      "<SERVICE_05>",
+      "<SERVICE_06>",
+      "<SERVICE_07>",
+      "<SERVICE_08>",
+      "<SERVICE_09>",
+      "<SERVICE_10>",
+      "<SERVICE_11>",
+      "<SERVICE_12>",
+      "<SERVICE_13>",
+      "<SERVICE_14>",
+      "<SERVICE_15>",
+      "<SERVICE_16>",
+      "<SERVICE_17>"
+    ],
+
+    "validation": {
+      "healthy_status": "PASS",
+      "unhealthy_status": "ERROR",
+      "unhealthy_reason_required": true,
+      "all_healthy_status": "PASS",
+      "any_unhealthy_status": "MANUAL_REVIEW",
+      "missing_expected_service_status": "ERROR"
+    },
+
     "manual_review": {
-      "url": "<TBD>",
-      "instructions": "<TBD>",
-      "note_required": "<TBD>"
+      "required_when": "any_unhealthy",
+      "note_required": true,
+      "instructions": "Review every unhealthy DOCTOR service and its reported reason before making the final decision."
     }
   }
 }

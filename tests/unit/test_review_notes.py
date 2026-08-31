@@ -56,7 +56,7 @@ class ReviewNoteApiTests(unittest.TestCase):
                 continue
             self.client.put(
                 f"/api/runs/{run_id}/notes/splunk/{dashboard['id']}",
-                json={"note": f"reviewed {dashboard['id']}"},
+                json={"note": f"reviewed {dashboard['id']}", "reviewed": True},
                 headers={"X-Reviewer": "alice"},
             )
 
@@ -127,7 +127,7 @@ class ReviewNoteApiTests(unittest.TestCase):
         )
         self.client.put(
             f"/api/runs/{run_id}/notes/splunk/system_health",
-            json={"note": "splunk note"},
+            json={"note": "splunk note", "reviewed": True},
             headers={"X-Reviewer": "alice"},
         )
         self.save_required_dashboard_notes(run_id)
@@ -183,15 +183,16 @@ class ReviewNoteApiTests(unittest.TestCase):
         rabbitmq = self.client.get(f"/runs/{run_id}/rabbitmq")
         self.assertEqual(rabbitmq.status_code, 200, rabbitmq.text)
         self.assertIn("Queues", rabbitmq.text)
-        self.assertIn("Exchanges", rabbitmq.text)
-        self.assertIn("Bindings", rabbitmq.text)
-        self.assertIn("Node Alarms", rabbitmq.text)
+        self.assertIn("Node Resources", rabbitmq.text)
+        self.assertNotIn("Exchanges", rabbitmq.text)
+        self.assertNotIn("Bindings", rabbitmq.text)
+        self.assertNotIn("Node Alarms", rabbitmq.text)
 
         recording = self.client.get(f"/runs/{run_id}/recording")
         self.assertEqual(recording.status_code, 200, recording.text)
-        self.assertIn("Baseline WebApp N", recording.text)
+        self.assertIn("Four runtime baselines", recording.text)
         self.assertIn("Selected existing non-recording device", recording.text)
-        self.assertIn("WebApp restored to N", recording.text)
+        self.assertIn("All four observations restored", recording.text)
 
         infrastructure = self.client.get(f"/runs/{run_id}/infrastructure")
         self.assertEqual(infrastructure.status_code, 200, infrastructure.text)
@@ -203,7 +204,7 @@ class ReviewNoteApiTests(unittest.TestCase):
         run_id = self.make_review_ready_run("WR-20260811-000012")
         self.client.put(
             f"/api/runs/{run_id}/notes/splunk/system_health",
-            json={"note": "dashboard reviewed"},
+            json={"note": "dashboard reviewed", "reviewed": True},
             headers={"X-Reviewer": "alice"},
         )
 
@@ -212,6 +213,7 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.assertIn("OPEN ALL DASHBOARDS", page.text)
         self.assertIn("dashboard-card", page.text)
         self.assertIn("Open Dashboard", page.text)
+        self.assertIn("Dashboard reviewed", page.text)
         self.assertIn("dashboard reviewed", page.text)
 
     def test_review_page_has_explicit_final_confirmation_and_no_tables(self):
@@ -271,7 +273,10 @@ class ReviewNoteApiTests(unittest.TestCase):
                 self.assertEqual(
                     self.client.put(
                         f"/api/runs/{run_id}/notes/splunk/{dashboard['id']}",
-                        json={"note": f"production splunk {dashboard['id']}"},
+                        json={
+                            "note": f"production splunk {dashboard['id']}",
+                            "reviewed": True,
+                        },
                         headers=mutation_headers,
                     ).status_code,
                     200,

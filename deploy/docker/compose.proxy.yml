@@ -1,0 +1,28 @@
+services:
+  web:
+    # Reverse-proxy production mode.
+    #
+    # This version assumes the reverse proxy runs on the SAME HOST.
+    #
+    # Browser
+    #   -> HTTPS reverse proxy
+    #   -> authenticated identity header
+    #   -> 127.0.0.1:8080
+    #
+    # Direct network access to application port 8080 is intentionally
+    # prevented.
+
+    environment:
+      WEEKEND_REPORT_AUTH_MODE: production
+      WEEKEND_REPORT_AUTH_PROVIDER: trusted_header
+      WEEKEND_REPORT_AUTH_TRUSTED_HEADER: ${WEEKEND_REPORT_AUTH_TRUSTED_HEADER:-X-Authenticated-User}
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+
+  worker:
+    environment:
+      WEEKEND_REPORT_AUTH_MODE: production
+      WEEKEND_REPORT_AUTH_PROVIDER: trusted_header
+      WEEKEND_REPORT_AUTH_TRUSTED_HEADER: ${WEEKEND_REPORT_AUTH_TRUSTED_HEADER:-X-Authenticated-User}

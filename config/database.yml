@@ -1,24 +1,25 @@
 {
   "collection_mode": "live",
-  "adapter": "existing_sync_function",
-  "function_reference": "<TBD>",
+  "adapter": "existing_powershell_script",
+  "script": {
+    # Existing approved database synchronization validation script.
+    # The script is stored as part of the Weekend Report project.
+    # The script owns:
+    #   - database connections
+    #   - database topology
+    #   - test-table creation
+    #   - synchronization verification
+    #   - test-table deletion
+    #   - cleanup
+    # Weekend Report only executes the script and evaluates
+    # the result returned by it.
+    "path": "scripts/database/database_sync_check.ps1",
+    # Maximum time Weekend Report allows the entire script
+    # execution to run before treating it as an ERROR.
+    "execution_timeout_seconds": 300
+  },
   "algorithm": {
-    "description": "Use the approved existing database sync function: create temp table, verify replication to expected databases, delete temp table, verify deletion replicated.",
+    "description": "Execute the approved existing database synchronization script exactly as provided.",
     "rewrite_algorithm": false
-  },
-  "targets": {
-    "source_database": "<TBD>",
-    "expected_replica_databases": [
-      "<TBD>"
-    ],
-    "temp_table_definition": "<TBD>",
-    "cleanup_policy": "<TO_VERIFY>"
-  },
-  "required_secret_env": [
-    "<TBD>"
-  ],
-  "timeouts": {
-    "replication_seconds": "<TBD>",
-    "cleanup_seconds": "<TBD>"
   }
 }

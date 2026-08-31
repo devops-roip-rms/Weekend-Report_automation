@@ -1,6 +1,16 @@
 {
   "collection_mode": "live",
   "workflow": "existing_device_start_stop",
+  # ============================================================
+  # Safety
+  #
+  # The Recording test must use an already existing device.
+  # It must never create or delete a device.
+  #
+  # The Manager WebApp is the only component allowed to change
+  # recording state. Site WebApps and site servers are read-only
+  # observation points.
+  # ============================================================
   "safety": {
     "create_device_allowed": false,
     "delete_device_allowed": false,
@@ -8,60 +18,124 @@
     "crash_after_start_requires_recovery": true,
     "automatic_replay_after_unknown_state": false
   },
+  # ============================================================
+  # Manager WebApp
+  #
+  # The automation uses the Manager WebApp to:
+  #   1. Find an existing device that is currently not recording.
+  #   2. Start recording on that same device.
+  #   3. Stop recording on that same device after validation.
+  #
+  # The API calls/implementation used to find the device and
+  # perform START/STOP belong in the Recording integration code,
+  # not in this configuration file.
+  # ============================================================
+  "manager": {
+    "url_env": "RECORDING_MANAGER_WEBAPP_URL",
+
+    "device_selection": {
+      "use_existing_device_only": true,
+      "required_initial_state": "not_recording",
+      "no_eligible_device_status": "ERROR"
+    }
+  },
+  # ============================================================
+  # Observation points
+  #
+  # NO recording counts are configured in this file.
+  #
+  # When the test starts, the automation dynamically reads and
+  # stores the current recording-device count from all four
+  # observation points:
+  #
+  #   - Site 1 WebApp
+  #   - Site 2 WebApp
+  #   - Site 1 server
+  #   - Site 2 server
+  #
+  # These runtime values become the baselines for this run.
+  # ============================================================
   "sites": {
     "site1": {
+      # Read-only Site 1 WebApp observation point.
+      # The current recording-device count is captured when the
+      # test starts and stored as the Site 1 WebApp baseline.
       "webapp": {
         "url_env": "RECORDING_SITE1_WEBAPP_URL",
-        "auth_reference": "<TBD>",
-        "recording_count_query": "<TBD>",
-        "device_recording_status_query": "<TBD>"
+        "capture_baseline_at_test_start": true
       },
-      "backend": {
-        "url_env": "RECORDING_SITE1_BACKEND_URL",
-        "auth_reference": "<TBD>",
-        "recording_count_query": "<TBD>"
-      },
-      "device_selection": {
-        "source": "existing_devices",
-        "filter": "first suitable existing non-recording device",
-        "no_eligible_device_status": "<TO_VERIFY>"
-      },
-      "actions": {
-        "start_recording": "<TBD>",
-        "stop_recording": "<TBD>"
-      },
-      "polling": {
-        "timeout_seconds": "<TBD>",
-        "interval_seconds": "<TBD>"
-      },
-      "cleanup_verification": "<TBD>"
+      # Read-only Site 1 server observation point.
+      # The current recording-device count is captured when the
+      # test starts and stored as the Site 1 server baseline.
+      "server": {
+        "connection_reference": "RECORDING_SITE1_SERVER",
+        "capture_baseline_at_test_start": true
+      }
     },
     "site2": {
+      # Read-only Site 2 WebApp observation point.
+      # The current recording-device count is captured when the
+      # test starts and stored as the Site 2 WebApp baseline.
       "webapp": {
         "url_env": "RECORDING_SITE2_WEBAPP_URL",
-        "auth_reference": "<TBD>",
-        "recording_count_query": "<TBD>",
-        "device_recording_status_query": "<TBD>"
+        "capture_baseline_at_test_start": true
       },
-      "backend": {
-        "url_env": "RECORDING_SITE2_BACKEND_URL",
-        "auth_reference": "<TBD>",
-        "recording_count_query": "<TBD>"
-      },
-      "device_selection": {
-        "source": "existing_devices",
-        "filter": "first suitable existing non-recording device",
-        "no_eligible_device_status": "<TO_VERIFY>"
-      },
-      "actions": {
-        "start_recording": "<TBD>",
-        "stop_recording": "<TBD>"
-      },
-      "polling": {
-        "timeout_seconds": "<TBD>",
-        "interval_seconds": "<TBD>"
-      },
-      "cleanup_verification": "<TBD>"
+      # Read-only Site 2 server observation point.
+      # The current recording-device count is captured when the
+      # test starts and stored as the Site 2 server baseline.
+      "server": {
+        "connection_reference": "RECORDING_SITE2_SERVER",
+        "capture_baseline_at_test_start": true
+      }
     }
+  },
+  # ============================================================
+  # Validation
+  # Example runtime baselines:
+  #
+  #   Site 1 WebApp = N1
+  #   Site 2 WebApp = N2
+  #   Site 1 server = M1
+  #   Site 2 server = M2
+  # After START, all four counts must increase by exactly 1.
+  # After STOP, all four counts must return exactly to the
+  # baselines captured at the start of the test.
+  # ============================================================
+  "validation": {
+    "baseline": {
+      "capture_at_test_start": true
+    },
+    "after_start": {
+      "site1_webapp_count_delta": 1,
+      "site2_webapp_count_delta": 1,
+      "site1_server_count_delta": 1,
+      "site2_server_count_delta": 1
+    },
+    "after_stop": {
+      "site1_webapp_must_return_to_baseline": true,
+      "site2_webapp_must_return_to_baseline": true,
+      "site1_server_must_return_to_baseline": true,
+      "site2_server_must_return_to_baseline": true
+    }
+  },
+  # ============================================================
+  # Polling
+  #
+  # Counts may not change immediately after START or STOP.
+  # Poll until the expected state is observed or the timeout is
+  # reached.
+  # ============================================================
+  "polling": {
+    "timeout_seconds": 120,
+    "interval_seconds": 5
+  },
+  # ============================================================
+  # Result policy
+  # ============================================================
+  "result_policy": {
+    "functional_mismatch_status": "FAIL",
+    "technical_failure_status": "ERROR",
+    "cleanup_failure_status": "ERROR",
+    "cleanup_failure_requires_recovery": true
   }
 }

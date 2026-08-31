@@ -1,82 +1,63 @@
 {
   "collection_mode": "live",
+
   "connections": {
     "site1": {
       "url_env": "RABBITMQ_SITE1_URL",
       "user_env": "RABBITMQ_SITE1_USER",
       "password_env": "RABBITMQ_SITE1_PASSWORD",
-      "tls_verify": "<TBD>",
-      "timeout": "<TBD>",
-      "retry": "<TBD>"
+      "tls_verify": true,
+      "timeout_seconds": 10,
+      "retry_attempts": 3
     },
+
     "site2": {
       "url_env": "RABBITMQ_SITE2_URL",
       "user_env": "RABBITMQ_SITE2_USER",
       "password_env": "RABBITMQ_SITE2_PASSWORD",
-      "tls_verify": "<TBD>",
-      "timeout": "<TBD>",
-      "retry": "<TBD>"
+      "tls_verify": true,
+      "timeout_seconds": 10,
+      "retry_attempts": 3
     }
   },
-  "defaults": {
-    "vhost": {
-      "required": true
+
+  "queues": {
+    "scope": "all",
+
+    "expected": {
+      "ready": 0,
+      "unacked": 0,
+      "total": 0
     },
-    "queue": {
-      "required": true,
-      "durable": "<TBD>",
-      "auto_delete": "<TBD>",
-      "exclusive": "<TBD>",
-      "min_consumers": "<TBD>",
-      "warning_messages": "<TBD>",
-      "critical_messages": "<TBD>"
+
+    "recheck": {
+      "refresh_attempts": 3,
+      "delay_seconds": "<TBD>"
     },
-    "exchange": {
-      "required": true,
-      "durable": "<TBD>",
-      "auto_delete": "<TBD>"
-    },
-    "binding": {
-      "required": true
-    }
+
+    "nonzero_after_rechecks_status": "ERROR"
   },
-  "topology": {
-    "vhosts": {
-      "<TBD>": {
-        "name": "<TBD>"
-      }
+
+  "nodes": {
+    "scope": "all",
+
+    "expected": {
+      "file_descriptors": "green",
+      "socket_descriptors": "green",
+      "erlang_processes": "green",
+      "disk_space": "green"
     },
-    "queues": {
-      "<TBD>": {
-        "vhost": "<TBD>",
-        "name": "<TBD>"
-      }
-    },
-    "exchanges": {
-      "<TBD>": {
-        "vhost": "<TBD>",
-        "name": "<TBD>",
-        "type": "<TBD>"
-      }
-    },
-    "bindings": {
-      "<TBD>": {
-        "vhost": "<TBD>",
-        "source": "<TBD>",
-        "destination_type": "<TBD>",
-        "destination": "<TBD>",
-        "routing_key": "<TBD>"
-      }
-    }
+
+    "unhealthy_status": "ERROR"
   },
+
   "sites": {
     "site1": {
-      "topology": "common",
-      "overrides": {}
+      "required": true
     },
+
     "site2": {
-      "topology": "common",
-      "overrides": {}
+      "required": true
     }
   }
 }

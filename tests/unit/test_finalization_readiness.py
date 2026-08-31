@@ -55,6 +55,7 @@ class FinalizationReadinessTests(unittest.TestCase):
                     "reviewer",
                     f"reviewed {dashboard['id']}",
                     dashboard_id=dashboard["id"],
+                    reviewed=True,
                 )
             )
 
@@ -84,6 +85,64 @@ class FinalizationReadinessTests(unittest.TestCase):
             ReviewDecision.APPROVE,
         )
         self.assertEqual(errors, [])
+
+    def test_required_splunk_review_is_not_satisfied_by_note_text_alone(self):
+        config = self.single_module_config()
+        config["rules"]["review"]["required_module_notes"] = []
+        config["splunk_dashboards"]["dashboards"] = [
+            {
+                "id": "system_health",
+                "display_name": "System Health",
+                "url": "https://example.invalid/splunk/system-health",
+                "required_review": True,
+                "note_required": False,
+            }
+        ]
+        run_id = self.make_review_ready_run()
+        self.repo.save_note(
+            ReviewNote(
+                run_id,
+                NoteScope.SPLUNK_DASHBOARD,
+                "reviewer",
+                "I opened the dashboard",
+                dashboard_id="system_health",
+            )
+        )
+        errors = validate_finalization_readiness(
+            self.repo,
+            config,
+            run_id,
+            ReviewDecision.APPROVE,
+        )
+        self.assertTrue(any("must be reviewed and saved" in error for error in errors))
+
+    def test_required_splunk_review_without_note_text_allows_when_note_not_required(self):
+        config = self.single_module_config()
+        config["rules"]["review"]["required_module_notes"] = []
+        config["splunk_dashboards"]["dashboards"] = [
+            {
+                "id": "system_health",
+                "display_name": "System Health",
+                "url": "https://example.invalid/splunk/system-health",
+                "required_review": True,
+                "note_required": False,
+            }
+        ]
+        run_id = self.make_review_ready_run()
+        self.repo.save_note(
+            ReviewNote(
+                run_id,
+                NoteScope.SPLUNK_DASHBOARD,
+                "reviewer",
+                "",
+                dashboard_id="system_health",
+                reviewed=True,
+            )
+        )
+        self.assertEqual(
+            validate_finalization_readiness(self.repo, config, run_id, ReviewDecision.APPROVE),
+            [],
+        )
 
     def test_manual_review_requires_result_acknowledgment(self):
         config = self.single_module_config("doctor")

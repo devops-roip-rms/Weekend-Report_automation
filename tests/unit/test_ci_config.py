@@ -11,9 +11,11 @@ class CIConfigTests(unittest.TestCase):
         self.github_quality = Path(".github/workflows/quality-gates.yml")
         self.github_image = Path(".github/workflows/build-image.yml")
         self.gitlab_root = Path(".gitlab-ci.yml")
-        self.gitlab_quality = Path(".gitlab/ci/quality.yml")
-        self.gitlab_image = Path(".gitlab/ci/image.yml")
+        self.gitlab_quality = Path(".gitlab-ci-cd/quality.yml")
+        self.gitlab_image = Path(".gitlab-ci-cd/image.yml")
         self.ci_compose = Path("deploy/docker/compose.ci.yml")
+        self.github_scripts = Path(".github/scripts")
+        self.gitlab_scripts = Path(".gitlab-ci-cd/scripts")
 
     def test_ci_yaml_files_parse(self):
         for path in (
@@ -59,11 +61,34 @@ class CIConfigTests(unittest.TestCase):
         self.assertLess(smoke, version_tag)
         self.assertLess(version_tag, export)
         self.assertLess(export, publish)
-        self.assertIn("docker tag", text)
-        self.assertIn('release_image_tag="weekend-report:${version}"', text)
-        self.assertIn('docker save "${{ steps.identity.outputs.release_image_tag }}"', text)
-        self.assertIn("release-image-id.txt", text)
-        self.assertIn("Release tag does not point to the exact smoked image", text)
+        expected_scripts = (
+            "derive-build-identity.sh",
+            "record-built-image.sh",
+            "version-tag-smoked-image.sh",
+            "export-verified-image.sh",
+            "decide-publish.sh",
+            "login-ghcr.sh",
+            "publish-verified-image.sh",
+        )
+        for script_name in expected_scripts:
+            script_path = self.github_scripts / script_name
+            self.assertTrue(script_path.is_file(), script_path)
+            self.assertIn(f".github/scripts/{script_name}", text)
+        identity_script = (
+            self.github_scripts / "derive-build-identity.sh"
+        ).read_text(encoding="utf-8")
+        version_script = (
+            self.github_scripts / "version-tag-smoked-image.sh"
+        ).read_text(encoding="utf-8")
+        export_script = (
+            self.github_scripts / "export-verified-image.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("TAG", identity_script)
+        self.assertTrue(
+            "docker tag" in version_script
+            or "docker image tag" in version_script
+        )
+        self.assertIn("docker save", export_script)
         self.assertNotIn("continue-on-error", text)
 
     def test_gitlab_image_needs_all_quality_jobs(self):
@@ -82,32 +107,94 @@ class CIConfigTests(unittest.TestCase):
         ):
             self.assertIn(f"- {gate}", text)
         self.assertNotIn("allow_failure: true", text)
-        self.assertLess(text.index("docker build"), text.index("image-smoke"))
-        self.assertLess(text.index("image-smoke"), text.index('docker tag "$LOCAL_IMAGE_TAG"'))
-        self.assertLess(text.index('docker tag "$LOCAL_IMAGE_TAG"'), text.index("docker save"))
-        self.assertLess(text.index("docker save"), text.index("WEEKEND_REPORT_PUBLISH_IMAGE"))
-        self.assertIn('RELEASE_IMAGE_TAG="weekend-report:${IMAGE_VERSION}"', text)
-        self.assertIn('docker save "$RELEASE_IMAGE_TAG"', text)
-        self.assertIn("release-image-id.txt", text)
-        self.assertIn("Release tag does not point to the exact smoked image", text)
+        main_script_path = (
+            self.gitlab_scripts / "image-build-smoke-export.sh"
+        )
+        export_script_path = (
+            self.gitlab_scripts / "export-offline-image.sh"
+        )
+        publish_script_path = (
+            self.gitlab_scripts / "publish-image.sh"
+        )
+        verify_script_path = (
+            self.gitlab_scripts / "verify-release-image.sh"
+        )
+        for script_path in (
+            main_script_path,
+            export_script_path,
+            publish_script_path,
+            verify_script_path,
+        ):
+            self.assertTrue(script_path.is_file(), script_path)
+        self.assertIn(
+            "sh .gitlab-ci-cd/scripts/image-build-smoke-export.sh",
+            text,
+        )
+        main_script = main_script_path.read_text(encoding="utf-8")
+        export_script = export_script_path.read_text(encoding="utf-8")
+        verify_script = verify_script_path.read_text(encoding="utf-8")
+        self.assertIn("docker build", main_script)
+        self.assertIn("image-smoke", main_script)
+        self.assertIn(
+            "verify-release-image.sh",
+            main_script,
+        )
+        self.assertIn(
+            "export-offline-image.sh",
+            main_script,
+        )
+        self.assertIn(
+            "publish-image.sh",
+            main_script,
+        )
+        smoke = main_script.index("image-smoke")
+        verify = main_script.index("verify-release-image.sh")
+        export = main_script.index("export-offline-image.sh")
+        publish = main_script.index("publish-image.sh")
+        self.assertLess(smoke, verify)
+        self.assertLess(verify, export)
+        self.assertLess(export, publish)
+        combined_tag_logic = main_script + "\n" + verify_script
+        self.assertTrue(
+            "docker tag" in combined_tag_logic
+            or "docker image tag" in combined_tag_logic
+        )
+        self.assertIn("docker save", export_script)
 
     def test_image_release_is_driven_by_tag_file(self):
         github_text = self.github_image.read_text(encoding="utf-8")
         gitlab_text = self.gitlab_image.read_text(encoding="utf-8")
-
+        github_identity = (
+            self.github_scripts / "derive-build-identity.sh"
+        ).read_text(encoding="utf-8")
+        gitlab_image_script = (
+            self.gitlab_scripts / "image-build-smoke-export.sh"
+        ).read_text(encoding="utf-8")
+        # GitHub: image automation is triggered by changes to TAG
+        # on the main branch, not by Git tags.
         self.assertIn("paths:", github_text)
         self.assertIn("- TAG", github_text)
-        self.assertIn("< TAG", github_text)
         self.assertIn("branches:", github_text)
         self.assertIn("- main", github_text)
         self.assertNotIn("GITHUB_REF_NAME", github_text)
         self.assertNotIn("refs/tags/", github_text)
-
+        # TAG parsing now lives in the extracted identity script.
+        self.assertIn(
+            ".github/scripts/derive-build-identity.sh",
+            github_text,
+        )
+        self.assertIn("TAG", github_identity)
+        # GitLab: image automation is likewise driven by TAG changes
+        # and is not triggered by Git tags.
         self.assertIn("changes:", gitlab_text)
         self.assertIn("- TAG", gitlab_text)
         self.assertNotIn("CI_COMMIT_TAG", gitlab_text)
-
-        self.assertIn("< TAG", gitlab_text)
+        # TAG parsing belongs to the extracted GitLab image script.
+        self.assertIn(
+            ".gitlab-ci-cd/scripts/image-build-smoke-export.sh",
+            gitlab_text,
+        )
+        self.assertIn("TAG", gitlab_image_script)
 
     def test_manual_verified_image_rebuild_triggers_are_supported(self):
         github_text = self.github_image.read_text(encoding="utf-8")

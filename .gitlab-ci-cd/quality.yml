@@ -1,5 +1,5 @@
 .python_gate:
-  image: python:3.14-slim
+  image: cr.io:5000/python:3.14-slim
   cache:
     key: "pip-${CI_COMMIT_REF_SLUG}"
     paths:
@@ -83,6 +83,6 @@ docker-compose-validate:
   stage: quality
   needs: [config-validation]
   before_script:
-    - apk add --no-cache python3
+    - apk add --no-cache python
   script:
-    - python3 scripts/ci.py compose-config
+    - python scripts/ci.py compose-config

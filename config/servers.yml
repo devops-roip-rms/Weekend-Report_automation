@@ -1,83 +1,191 @@
 {
+  # ============================================================
+  # SSH
+  #
+  # Common SSH configuration used to connect to all configured
+  # infrastructure servers in Site 1 and Site 2.
+  #
+  # SSH is used only for read-only infrastructure validation.
+  #
+  # Connection/authentication failure:
+  #   -> ERROR
+  #
+  # Command execution failure / timeout:
+  #   -> ERROR
+  # ============================================================
   "ssh": {
+    # Linux account used by the Weekend Report automation.
     "username": "<TBD>",
-    "auth": "<TBD>",
-    "host_key_policy": "<TBD>",
-    "connect_timeout": "<TBD>",
-    "command_timeout": "<TBD>"
+
+    # SSH authentication method.
+    # Recommended:
+    #   private_key
+    #
+    # The private key itself must not be stored in this file.
+    # It will be provided through the runtime environment.
+    "auth": "private_key",
+
+    # SSH host verification policy.
+    # Production should verify the remote host identity.
+    "host_key_policy": "strict",
+
+    # Maximum time allowed to establish the SSH connection.
+    "connect_timeout": 5,
+
+    # Maximum time allowed for an individual infrastructure
+    # command to complete.
+    "command_timeout": 5
   },
+  # ============================================================
+  # Sites
+  #
+  # Each site contains the servers that must participate in the
+  # Weekend Report infrastructure validation.
+  #
+  # Each required server is checked for:
+  #
+  #   1. SSH connectivity
+  #   2. Expected local filesystems / disk utilization
+  #   3. Chrony / NTP synchronization
+  #
+  # NFS validation is intentionally NOT part of this module.
+  # ============================================================
   "sites": {
+    # ==========================================================
+    # Site 1
+    # ==========================================================
     "site1": {
       "servers": [
         {
+          # Stable internal identifier used by the report.
           "id": "<TBD>",
+          # Real hostname or IP address used for SSH.
           "hostname": "<TBD>",
-          "required": "<TBD>",
-          "ssh_port": "<TBD>",
+          # If true, this server must be successfully validated.
+          "required": true,
+          # SSH listening port.
+          "ssh_port": 22,
+          # ====================================================
+          # Filesystem validation
+          # The automation retrieves the current filesystem state
+          # when the Weekend Report runs.
+          # No current disk percentage is entered in this file.
+          # Validation:
+          #   usage < warning_percent
+          #       -> PASS
+          #   warning_percent <= usage < critical_percent
+          #       -> WARNING
+          #   usage >= critical_percent
+          #       -> FAIL
+          #   expected required filesystem/mount missing
+          #       -> FAIL
+          #   filesystem state cannot be collected reliably
+          #       -> ERROR
+          # ====================================================
           "filesystems": [
             {
-              "filesystem": "<TBD>",
-              "mountpoint": "<TBD>",
-              "warning_percent": "<TBD>",
-              "critical_percent": "<TBD>",
-              "required": "<TBD>"
+              # Check root filesystem usage by running:
+              #   df -h /
+              # The current Use% value is parsed at runtime.
+              # usage < 70%
+              #   -> PASS
+              # usage >= 70% and < 80%
+              #   -> WARNING
+              # usage >= 80%
+              #   -> FAIL
+              # If df cannot be executed or the result cannot be parsed:
+              #   -> ERROR
+              "path": "/",
+              "command": "df -h /",
+              "warning_percent": 70,
+              "critical_percent": 80,
+              "required": true
             }
           ],
-          "nfs_mounts": [
-            {
-              "source": "<TBD>",
-              "destination": "<TBD>",
-              "fs_type": "<TBD>",
-              "warning_percent": "<TBD>",
-              "critical_percent": "<TBD>",
-              "required": "<TBD>"
-            }
-          ],
+          # ====================================================
+          # Chrony / NTP validation
+          # The automation reads the current time synchronization
+          # state when the Weekend Report runs.
+          # Validation includes:
+          #   - expected timezone
+          #   - Chrony/NTP synchronization
+          #   - expected time source
+          #   - current clock offset
+          # synchronized + correct source + offset below warning
+          #       -> PASS
+          # warning_offset <= absolute offset < critical_offset
+          #       -> WARNING
+          # not synchronized / wrong source /
+          # absolute offset >= critical_offset
+          #       -> FAIL
+          # Chrony state cannot be collected reliably
+          #       -> ERROR
+          # ====================================================
           "chrony": [
             {
+              # Expected operating-system timezone.
               "timezone": "<TBD>",
+              # Expected Chrony/NTP source.
               "source": "<TBD>",
+              # Absolute clock-offset threshold for WARNING.
               "warning_offset": "<TBD>",
+              # Absolute clock-offset threshold for FAIL.
               "critical_offset": "<TBD>",
-              "required": "<TBD>"
+              "required": true
             }
           ]
         }
       ]
     },
+    # ==========================================================
+    # Site 2
+    # ==========================================================
     "site2": {
       "servers": [
         {
+          # Stable internal identifier used by the report.
           "id": "<TBD>",
+          # Real hostname or IP address used for SSH.
           "hostname": "<TBD>",
-          "required": "<TBD>",
-          "ssh_port": "<TBD>",
+          "required": true,
+          "ssh_port": 22,
+          # ====================================================
+          # Filesystem validation
+          # Current utilization is collected dynamically when the
+          # Weekend Report runs. Only the expected filesystem path and thresholds are configured here.
+          # ====================================================
           "filesystems": [
             {
-              "filesystem": "<TBD>",
-              "mountpoint": "<TBD>",
-              "warning_percent": "<TBD>",
-              "critical_percent": "<TBD>",
-              "required": "<TBD>"
+              # Check root filesystem usage by running:
+              #   df -h /
+              # The current Use% value is parsed at runtime.
+              # usage < 70%
+              #   -> PASS
+              # usage >= 70% and < 80%
+              #   -> WARNING
+              # usage >= 80%
+              #   -> FAIL
+              # If df cannot be executed or the result cannot be parsed:
+              #   -> ERROR
+              "path": "/",
+              "command": "df -h /",
+              "warning_percent": 70,
+              "critical_percent": 80,
+              "required": true
             }
           ],
-          "nfs_mounts": [
-            {
-              "source": "<TBD>",
-              "destination": "<TBD>",
-              "fs_type": "<TBD>",
-              "warning_percent": "<TBD>",
-              "critical_percent": "<TBD>",
-              "required": "<TBD>"
-            }
-          ],
+          # ====================================================
+          # Chrony / NTP validation
+          # Current synchronization/source/offset information is
+          # collected dynamically when the Weekend Report runs.
+          # ====================================================
           "chrony": [
             {
               "timezone": "<TBD>",
               "source": "<TBD>",
               "warning_offset": "<TBD>",
               "critical_offset": "<TBD>",
-              "required": "<TBD>"
+              "required": true
             }
           ]
         }

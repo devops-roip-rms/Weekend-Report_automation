@@ -118,6 +118,12 @@ class OrchestratorRunner:
             self._store_result_with_evidence(context, result, parity_basis)
         all_results.extend(parity)
         status = aggregate_status(all_results, context.config)
+        if _recording_recovery_required(all_results):
+            context.repository.mark_recovery_required(
+                context.run_id,
+                "Recording cleanup/restoration requires manual recovery",
+            )
+            return all_results
         context.repository.mark_review_ready(context.run_id, status)
         return all_results
 
@@ -161,3 +167,10 @@ def _if_unavailable_status(config: dict[str, Any], module: str) -> CheckStatus:
     if status == CheckStatus.PASS:
         return CheckStatus.WARNING
     return status
+
+
+def _recording_recovery_required(results: list[CheckResult]) -> bool:
+    return any(
+        result.module == "recording" and result.metadata.get("recovery_required")
+        for result in results
+    )

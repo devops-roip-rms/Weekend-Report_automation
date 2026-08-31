@@ -19,3 +19,7 @@ dist/
 .github/
 .gitlab/
 .gitlab-ci.yml
+
+# Runtime-only authentication / TLS material
+deploy/docker/secrets/
+deploy/docker/tls/

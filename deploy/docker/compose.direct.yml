@@ -1,0 +1,48 @@
+services:
+  web:
+    # Direct-access production mode:
+    #
+    # Browser
+    #   -> HTTPS :8080
+    #   -> Weekend Report local_login
+    #
+    # TLS certificate and private key must exist locally under:
+    #
+    # deploy/docker/tls/server.crt
+    # deploy/docker/tls/server.key
+
+    command:
+      - uvicorn
+      - app.web.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ssl-certfile
+      - /app/tls/server.crt
+      - --ssl-keyfile
+      - /app/tls/server.key
+
+    environment:
+      WEEKEND_REPORT_AUTH_MODE: production
+      WEEKEND_REPORT_AUTH_PROVIDER: local_login
+      WEEKEND_REPORT_AUTH_TRUSTED_HEADER: ""
+      WEEKEND_REPORT_LOCAL_USERS_FILE: /app/secrets/local-users.json
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - ./secrets:/app/secrets:ro
+      - ./tls:/app/tls:ro
+
+
+  worker:
+    environment:
+      WEEKEND_REPORT_AUTH_MODE: production
+      WEEKEND_REPORT_AUTH_PROVIDER: local_login
+      WEEKEND_REPORT_AUTH_TRUSTED_HEADER: ""
+      WEEKEND_REPORT_LOCAL_USERS_FILE: /app/secrets/local-users.json
+
+    volumes:
+      - ./secrets:/app/secrets:ro

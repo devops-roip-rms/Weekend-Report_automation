@@ -3,17 +3,242 @@
   "defaults": {
     "required": true,
     "expected": {
-      "service_state": "<TBD>",
+      "service_state": "running",
       "task_state_policy": {
         "failed": "FAIL",
         "rejected": "FAIL",
         "restarting": "FAIL",
-        "starting": "<TO_VERIFY>"
+        "starting": "WARNING"
       }
+      # The reasoning is straightforward. failed and rejected are definitely bad.
+      # A restarting task indicates instability, so I would also make that FAIL.
+      # A starting task can legitimately exist during a rollout/reconciliation, so WARNING is more appropriate than immediately declaring the service broken.
+      # The project's validation contract explicitly allows task states to map independently to WARNING, FAIL, or IGNORE.
     }
   },
   "services": {
-    "<TBD>": {
+    "<TBD1>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD2>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD3>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD4>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD5>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD6>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD7>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD8>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD9>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD10>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD11>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD12>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD13>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD14>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD15>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD16>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD17>": {
+      "name": "<TBD>",
+      "stack": "<TBD>",
+      "expected": {
+        "desired_replicas": "<TBD>",
+        "running_replicas": "<TBD>",
+        "healthy_replicas": "<TBD>",
+        "image": {
+          "reference": "<TBD>",
+          "comparison": "<TO_VERIFY>"
+        }
+      }
+    },
+    "<TBD18>": {
       "name": "<TBD>",
       "stack": "<TBD>",
       "expected": {
@@ -36,20 +261,20 @@
         "endpoint_id": "<TBD>",
         "api_contract": "<TO_VERIFY>",
         "auth": {
-          "type": "<TO_VERIFY>",
+          "type": "<VERIFY_AUTH_ENUM>",
           "token_env": "PORTAINER_SITE1_TOKEN"
         },
         "tls": {
-          "verify": "<TO_VERIFY>",
+          "verify": true,
           "ca_file_env": "PORTAINER_SITE1_CA_FILE"
         },
         "timeouts": {
-          "connect_seconds": "<TBD>",
-          "read_seconds": "<TBD>"
+          "connect_seconds": 5,
+          "read_seconds": 15
         },
         "retries": {
-          "attempts": "<TBD>",
-          "backoff_seconds": "<TBD>"
+          "attempts": 3,
+          "backoff_seconds": 2
         }
       },
       "overrides": {
@@ -64,20 +289,20 @@
         "endpoint_id": "<TBD>",
         "api_contract": "<TO_VERIFY>",
         "auth": {
-          "type": "<TO_VERIFY>",
+          "type": "<VERIFY_AUTH_ENUM>",
           "token_env": "PORTAINER_SITE2_TOKEN"
         },
         "tls": {
-          "verify": "<TO_VERIFY>",
+          "verify": true,
           "ca_file_env": "PORTAINER_SITE2_CA_FILE"
         },
         "timeouts": {
-          "connect_seconds": "<TBD>",
-          "read_seconds": "<TBD>"
+          "connect_seconds": 5,
+          "read_seconds": 15
         },
         "retries": {
-          "attempts": "<TBD>",
-          "backoff_seconds": "<TBD>"
+          "attempts": 3,
+          "backoff_seconds": 2
         }
       },
       "overrides": {

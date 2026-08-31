@@ -3,73 +3,70 @@
     "portainer": {
       "enabled": true,
       "required": true,
-      "if_unavailable_status": "<TBD>"
+      "if_unavailable_status": "ERROR"
     },
     "doctor": {
       "enabled": true,
       "required": true,
-      "if_unavailable_status": "<TBD>"
+      "if_unavailable_status": "ERROR"
     },
     "rabbitmq": {
       "enabled": true,
       "required": true,
-      "if_unavailable_status": "<TBD>"
+      "if_unavailable_status": "ERROR"
     },
     "recording": {
       "enabled": true,
       "required": true,
-      "if_unavailable_status": "<TBD>"
+      "if_unavailable_status": "ERROR"
     },
     "infrastructure": {
       "enabled": true,
       "required": true,
-      "if_unavailable_status": "<TBD>"
+      "if_unavailable_status": "ERROR"
     },
     "database": {
       "enabled": true,
       "required": true,
-      "if_unavailable_status": "<TBD>"
+      "if_unavailable_status": "ERROR"
     },
     "splunk": {
       "enabled": true,
       "required": true,
-      "if_unavailable_status": "<TBD>"
+      "if_unavailable_status": "ERROR"
     }
   },
   "aggregation": {
-    "fail_blocks": "<TBD>",
-    "error_blocks": "<TBD>",
-    "manual_review_blocks": "<TBD>",
-    "skipped_blocks": "<TBD>",
-    "warning_overall_status": "<TBD>"
+    "fail_blocks": true,
+    "error_blocks": true,
+    "manual_review_blocks": true,
+    "skipped_blocks": true,
+    "warning_overall_status": "WARNING"
   },
   "parity": [
     {
-      "enabled": "<TBD>",
-      "module": "<TBD>",
-      "fields": [
-        "<TBD>"
-      ],
+    "enabled": true,
+    "module": "portainer",
+    "fields": [
+      "service_presence",
+      "desired_replicas",
+      "running_replicas",
+      "healthy_replicas",
+      "image",
+      "service_state"
+    ],
       "sites": [
         "<TBD>",
         "<TBD>"
       ],
-      "mismatch_status": "<TBD>",
-      "allowed_differences": [
-        {
-          "field": "<TBD>",
-          "target": "<TBD>",
-          "site_values": {
-            "site1": "<TBD>",
-            "site2": "<TBD>"
-          }
-        }
-      ]
+    "mismatch_status": "FAIL",
+    "allowed_differences": []
     }
   ],
   "review": {
     "general_notes_enabled": true,
-    "general_note_required": "<TBD>",
+    "general_note_required": true,
+
     "required_module_notes": [
       "portainer",
       "doctor",
@@ -79,25 +76,26 @@
       "database",
       "splunk"
     ],
+
     "result_note_required_statuses": [
-      "<TBD>"
+      "MANUAL_REVIEW"
     ],
-    "manual_review_acknowledgment_required": "<TBD>",
-    "recording_cleanup_acknowledgment_required": "<TBD>",
+
+    "manual_review_acknowledgment_required": true,
+    "recording_cleanup_acknowledgment_required": true,
+
     "reject_allowed": true,
+
     "approval_status_policy": {
-      "WARNING": "<TBD>",
-      "FAIL": "<TBD>",
-      "ERROR": "<TBD>",
-      "SKIPPED": "<TBD>",
-      "MANUAL_REVIEW": "<TBD>"
+      "WARNING": "REQUIRE_NOTE",
+      "FAIL": "BLOCK",
+      "ERROR": "BLOCK",
+      "SKIPPED": "BLOCK",
+      "MANUAL_REVIEW": "REQUIRE_NOTE"
     }
   },
   "recovery": {
-    "heartbeat_timeout_seconds": "<TBD>",
-    "operator_instructions": "Do not start a new Weekend Report until recovery is completed.
-    Review the failed run and its evidence. After the
-    environment is confirmed clean, resolve the recovery state and run
-    a new Weekend Report."
+    "heartbeat_timeout_seconds": 600,
+    "operator_instructions": "Do not start a new Weekend Report until recovery is completed. Review the failed run and its evidence. After the environment is confirmed clean, resolve the recovery state and run a new Weekend Report."
   }
 }

@@ -75,7 +75,7 @@ docs/
 scripts/
 tests/
 .github/
-.gitlab/
+.gitlab-ci-cd/
 .gitlab-ci.yml
 .env.example
 .gitignore
@@ -320,8 +320,8 @@ Keep:
 
 ```text
 .gitlab-ci.yml
-.gitlab/ci/quality.yml
-.gitlab/ci/image.yml
+.gitlab-ci-cd/quality.yml
+.gitlab-ci-cd/image.yml
 ```
 
 GitLab must preserve the same release rule:

@@ -66,7 +66,7 @@ Docker base: python:3.14-slim-bookworm pinned by digest
 - In production, main pages, run pages, module/review pages, evidence endpoints, evidence downloads, recovery actions, and final-report access require authenticated/authorized access.
 - Development mode may use local convenience identity.
 - Production rejects arbitrary `X-Reviewer`.
-- The implemented production identity boundary is configurable and currently supports `trusted_header` only behind an approved trusted reverse-proxy/authentication boundary.
+- The implemented production identity boundary is configurable and supports approved `trusted_header` or `local_login` deployment modes.
 - Browser mutations use reviewer-bound signed CSRF tokens generated with `WEEKEND_REPORT_CSRF_SIGNING_KEY`.
 - One permanent public/shared CSRF token is not supported.
 
@@ -186,11 +186,11 @@ Both sites being identically wrong must still fail expected-state validation.
 
 ### 7.2 RabbitMQ
 
-RabbitMQ expected state contains common vhosts/queues/exchanges/bindings, defaults, and per-site overrides.
+RabbitMQ expected state contains Management API connection references, required sites, all-queue zero-count policy, queue recheck policy, and all-node resource-state policy.
 
 Actual state comes from the RabbitMQ Management API or fixture actuals.
 
-Required topology defaults to required unless explicitly marked optional.
+The validator checks observed queue ready/unacked/total counts and node resource states. It does not validate the removed vhost/exchange/binding topology contract.
 
 ### 7.3 Recording
 
@@ -200,19 +200,21 @@ The application must not create/delete devices.
 
 High-level flow:
 
-1. collect WebApp/backend baselines;
-2. select a suitable existing non-recording device;
-3. start recording on that same device;
-4. verify device/WebApp/backend expected transition;
-5. stop the same device;
-6. verify restoration;
+1. select and verify a suitable existing non-recording device in the Manager WebApp;
+2. collect four runtime baselines from Site 1 WebApp, Site 2 WebApp, Site 1 server, and Site 2 server;
+3. start recording on that same device through the Manager WebApp;
+4. verify all four observations increased by the configured delta;
+5. stop the same device through the Manager WebApp;
+6. verify all four observations returned to baseline;
 7. verify cleanup.
 
 Crash/unknown state after a state-changing action requires `RECOVERY_REQUIRED`.
 
 ### 7.4 Database
 
-The database module is an adapter around the owner-supplied existing sync function.
+The database module is an adapter around the owner-supplied existing PowerShell synchronization script.
+
+The current script boundary is `scripts/database/database_sync_check.ps1`. If the script is empty or the runtime/result contract is not verified, production execution remains blocked.
 
 Expected structured outcomes include:
 
@@ -234,21 +236,13 @@ Live SSH remains blocked until server inventory, authentication, host-key policy
 Validation covers:
 
 - filesystem existence/utilization;
-- NFS mapping/source/usability/utilization;
 - Chrony synchronization/source/offset.
 
 ### 7.6 DOCTOR
 
-DOCTOR supports:
+DOCTOR currently uses API mode with exactly 17 expected services per site.
 
-```text
-manual
-api
-```
-
-API mode requires a verified endpoint/schema/auth/validation contract.
-
-Manual mode remains a human-review finding.
+API mode requires a verified endpoint/schema/auth/validation contract. Reviewable service-health issues remain service-level `ERROR` findings and roll the module to `MANUAL_REVIEW`; transport/API/authentication/timeout/schema/collection errors remain blocking `ERROR`s.
 
 ### 7.7 Splunk
 
@@ -264,6 +258,8 @@ Each configured dashboard can have:
 - display order.
 
 All saved Splunk notes are frozen into the snapshot/final report.
+
+Opening a dashboard URL is not review evidence by itself. Required review is satisfied only by a persisted dashboard review acknowledgment, with a separate note requirement when configured.
 
 ## 8. Aggregation and Finalization
 

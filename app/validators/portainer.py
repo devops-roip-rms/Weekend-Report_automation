@@ -80,7 +80,7 @@ def _validate_service(
     started: str,
 ) -> list[CheckResult]:
     required = bool(service_cfg.get("required", True))
-    expected = service_cfg.get("expected") or _legacy_expected(service_cfg)
+    expected = service_cfg.get("expected") or {}
     raw_name = service_cfg.get("name")
     name = str(raw_name) if raw_name is not None else "<unknown-service>"
     results: list[CheckResult] = []
@@ -152,6 +152,19 @@ def _replica_result(
             started,
             metadata={"error_code": "PORTAINER_CONFIGURATION_ERROR"},
         )
+    if isinstance(actual_value, bool) or not isinstance(actual_value, int) or actual_value < 0:
+        return _result(
+            run_id,
+            f"service.{kind}_replicas",
+            site_id,
+            service_name,
+            {"service_name": service_name, expected_key: expected_value},
+            {"service_name": service_name, actual_key: actual_value},
+            CheckStatus.ERROR,
+            f"PORTAINER_INVALID_RESPONSE: reliable {kind} replica count unavailable",
+            started,
+            metadata={"error_code": "PORTAINER_INVALID_RESPONSE"},
+        )
     status = CheckStatus.PASS if actual_value == expected_value else CheckStatus.FAIL
     return _result(
         run_id,
@@ -181,7 +194,12 @@ def _healthy_result(
         return None
     health = observed.get("health") or {}
     actual = observed.get("healthy_replicas")
-    if actual is None or health.get("available") is False:
+    if (
+        isinstance(actual, bool)
+        or not isinstance(actual, int)
+        or actual < 0
+        or health.get("available") is not True
+    ):
         return _result(
             run_id,
             "service.healthy_replicas",
@@ -198,7 +216,7 @@ def _healthy_result(
             started,
             metadata={"error_code": "PORTAINER_INVALID_RESPONSE"},
         )
-    status = CheckStatus.PASS if actual >= required else CheckStatus.FAIL
+    status = CheckStatus.PASS if actual == required else CheckStatus.FAIL
     return _result(
         run_id,
         "service.healthy_replicas",
@@ -245,8 +263,47 @@ def _image_result(
             started,
             metadata={"error_code": "PORTAINER_CONFIGURATION_ERROR"},
         )
+    if not isinstance(expected_value, str) or not expected_value.strip():
+        return _result(
+            run_id,
+            "service.image",
+            site_id,
+            service_name,
+            {"service_name": service_name, "comparison": comparison, "image": expected_value},
+            {"service_name": service_name, "image": actual_image},
+            CheckStatus.ERROR,
+            "PORTAINER_CONFIGURATION_ERROR: expected image reference is not configured",
+            started,
+            metadata={"error_code": "PORTAINER_CONFIGURATION_ERROR"},
+        )
+    if not isinstance(actual_image, str) or not actual_image.strip():
+        return _result(
+            run_id,
+            "service.image",
+            site_id,
+            service_name,
+            {"service_name": service_name, "comparison": comparison, "image": expected_value},
+            {"service_name": service_name, "image": actual_image},
+            CheckStatus.ERROR,
+            "PORTAINER_INVALID_RESPONSE: service image reference unavailable",
+            started,
+            metadata={"error_code": "PORTAINER_INVALID_RESPONSE"},
+        )
     actual_value = _image_value(actual_image, comparison)
-    expected_normalized = _image_value(str(expected_value), comparison)
+    expected_normalized = _image_value(expected_value, comparison)
+    if actual_value is None or expected_normalized is None:
+        return _result(
+            run_id,
+            "service.image",
+            site_id,
+            service_name,
+            {"service_name": service_name, "comparison": comparison, "image": expected_value},
+            {"service_name": service_name, "image": actual_image},
+            CheckStatus.ERROR,
+            f"PORTAINER_INVALID_RESPONSE: {comparison} value could not be derived",
+            started,
+            metadata={"error_code": "PORTAINER_INVALID_RESPONSE"},
+        )
     status = CheckStatus.PASS if actual_value == expected_normalized else CheckStatus.FAIL
     return _result(
         run_id,
@@ -273,8 +330,21 @@ def _service_state_result(
     observed: dict[str, Any],
     started: str,
 ) -> CheckResult:
-    expected_state = expected.get("service_state", "active")
+    expected_state = expected.get("service_state", "running")
     actual_state = observed.get("service_state")
+    if not isinstance(actual_state, str) or not actual_state:
+        return _result(
+            run_id,
+            "service.state",
+            site_id,
+            service_name,
+            {"service_name": service_name, "service_state": expected_state},
+            {"service_name": service_name, "service_state": actual_state},
+            CheckStatus.ERROR,
+            "PORTAINER_INVALID_RESPONSE: service state unavailable",
+            started,
+            metadata={"error_code": "PORTAINER_INVALID_RESPONSE"},
+        )
     status = CheckStatus.PASS if actual_state == expected_state else CheckStatus.FAIL
     return _result(
         run_id,
@@ -299,13 +369,30 @@ def _task_state_result(
     observed: dict[str, Any],
     started: str,
 ) -> CheckResult:
-    counts = {
-        "failed": int(observed.get("failed_tasks") or 0),
-        "rejected": int(observed.get("rejected_tasks") or 0),
-        "restarting": int(observed.get("restarting_tasks") or 0),
-        "starting": int(observed.get("starting_tasks") or 0),
-    }
+    counts = _task_counts(observed)
     policy = _task_policy(expected)
+    if counts is None:
+        return _result(
+            run_id,
+            "service.task_state",
+            site_id,
+            service_name,
+            {"service_name": service_name, "policy": policy},
+            {
+                "service_name": service_name,
+                "task_counts": {
+                    "failed": observed.get("failed_tasks"),
+                    "rejected": observed.get("rejected_tasks"),
+                    "restarting": observed.get("restarting_tasks"),
+                    "starting": observed.get("starting_tasks"),
+                },
+                "task_states": observed.get("task_states", []),
+            },
+            CheckStatus.ERROR,
+            "PORTAINER_INVALID_RESPONSE: task-state counts are malformed",
+            started,
+            metadata={"error_code": "PORTAINER_INVALID_RESPONSE"},
+        )
     status = _task_policy_status(counts, policy)
     return _result(
         run_id,
@@ -329,17 +416,28 @@ def _task_state_result(
     )
 
 
-def _legacy_expected(service_cfg: dict[str, Any]) -> dict[str, Any]:
-    expected_replicas = service_cfg.get("expected_replicas")
-    return {
-        "desired_replicas": expected_replicas,
-        "running_replicas": expected_replicas,
-        "healthy_replicas": service_cfg.get("healthy_replicas_required", expected_replicas),
-        "image": service_cfg.get("expected_image"),
-        "image_comparison": service_cfg.get("image_comparison", "full_reference"),
-        "service_state": service_cfg.get("service_state", "active"),
-        "task_state_policy": service_cfg.get("task_state_policy", {}),
-    }
+def _task_counts(
+    observed: dict[str, Any],
+) -> dict[str, int] | None:
+    counts: dict[str, int] = {}
+
+    for state, key in {
+        "failed": "failed_tasks",
+        "rejected": "rejected_tasks",
+        "restarting": "restarting_tasks",
+        "starting": "starting_tasks",
+    }.items():
+        if key not in observed:
+            return None
+
+        value = observed[key]
+
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None
+
+        counts[state] = value
+
+    return counts
 
 
 def _task_policy(expected: dict[str, Any]) -> dict[str, str]:
@@ -350,7 +448,7 @@ def _task_policy(expected: dict[str, Any]) -> dict[str, str]:
         "failed": "FAIL",
         "rejected": "FAIL",
         "restarting": "FAIL",
-        "starting": "IGNORE",
+        "starting": "WARNING",
     }
     for state, action in configured.items():
         if isinstance(action, str):
@@ -366,10 +464,7 @@ def _task_policy_status(counts: dict[str, int], policy: dict[str, str]) -> Check
         action = policy.get(state, "FAIL")
         if action == "IGNORE":
             continue
-        if action == "<TO_VERIFY>":
-            statuses.append(CheckStatus.ERROR)
-            continue
-        if action in {"WARNING", "FAIL", "ERROR"}:
+        if action in TASK_POLICY_STATUSES:
             statuses.append(CheckStatus(action))
         else:
             statuses.append(CheckStatus.ERROR)
