@@ -1,3 +1,7 @@
+default:
+  tags:
+    - docker
+
 stages:
   - validate
   - quality
@@ -15,9 +19,6 @@ workflow:
       when: never
     - if: '$CI_COMMIT_BRANCH'
     - when: never
-
-default:
-  interruptible: true
 
 include:
   - local: .gitlab-ci-cd/quality.yml
