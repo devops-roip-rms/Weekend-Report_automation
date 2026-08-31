@@ -14,6 +14,7 @@ from app.evidence.manager import EvidenceManager
 from app.orchestrator.run_context import RunContext
 from app.orchestrator.runner import OrchestratorRunner
 from app.reporting.snapshot import finalize_run
+from app.review.finalization import FinalizationReadinessError
 
 
 def main() -> int:
@@ -77,6 +78,7 @@ def main() -> int:
                         "ci-reviewer",
                         text,
                         dashboard_id=dashboard["id"],
+                        reviewed=True,
                     )
                 )
                 note_texts.append(text)
@@ -85,16 +87,33 @@ def main() -> int:
             repo.save_note(ReviewNote(run.run_id, NoteScope.GENERAL, "ci-reviewer", general_note))
             note_texts.append(general_note)
 
+            try:
+                finalize_run(
+                    repo,
+                    evidence,
+                    approval_config,
+                    run.run_id,
+                    "ci-reviewer",
+                    ReviewDecision.APPROVE,
+                )
+            except FinalizationReadinessError as exc:
+                assert "ERROR" in str(exc), (
+                    "APPROVE should be blocked by the intentional Database ERROR"
+                )
+            else:
+                raise AssertionError(
+                    "APPROVE unexpectedly succeeded despite the intentional Database ERROR"
+                )
             snapshot = finalize_run(
                 repo,
                 evidence,
                 approval_config,
                 run.run_id,
                 "ci-reviewer",
-                ReviewDecision.APPROVE,
+                ReviewDecision.REJECT,
             )
             finalized = repo.get_run(run.run_id)
-            assert finalized.state is RunState.APPROVED
+            assert finalized.state is RunState.REJECTED
             assert finalized.final_snapshot_path
             assert finalized.final_pdf_path
 
@@ -118,7 +137,7 @@ def main() -> int:
             assert repo.list_evidence(run.run_id), "safe E2E produced no evidence"
             print(
                 "safe CI end-to-end passed: create -> claim -> execute -> evidence -> "
-                "review -> notes -> approve -> snapshot -> final PDF"
+                "review -> notes -> approval blocked on ERROR -> reject -> snapshot -> final PDF"
             )
             return 0
         finally:
