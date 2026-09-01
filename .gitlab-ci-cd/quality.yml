@@ -70,7 +70,7 @@ dependency-audit:
   stage: quality
   needs: [config-validation]
   script:
-    - python scripts/ci.py audit
+    - sh .gitlab-ci-cd/scripts/verify-offline-dependency-audit.sh
 
 docker-compose-validate:
   image: weekend-report-ci:python314
