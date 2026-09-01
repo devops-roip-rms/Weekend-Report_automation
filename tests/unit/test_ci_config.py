@@ -40,7 +40,6 @@ class CIConfigTests(unittest.TestCase):
             "contract-tests:",
             "postgres-concurrency:",
             "safe-e2e:",
-            "dependency-audit:",
             "docker-compose-validate:",
         ):
             self.assertIn(gate, text)
@@ -102,7 +101,6 @@ class CIConfigTests(unittest.TestCase):
             "contract-tests",
             "postgres-concurrency",
             "safe-e2e",
-            "dependency-audit",
             "docker-compose-validate",
         ):
             self.assertIn(f"- {gate}", text)

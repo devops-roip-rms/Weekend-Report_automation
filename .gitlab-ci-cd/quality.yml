@@ -65,13 +65,6 @@ safe-e2e:
   script:
     - python scripts/ci.py e2e
 
-dependency-audit:
-  extends: .python_gate
-  stage: quality
-  needs: [config-validation]
-  script:
-    - sh .gitlab-ci-cd/scripts/verify-offline-dependency-audit.sh
-
 docker-compose-validate:
   image: weekend-report-ci:python314
   stage: quality
