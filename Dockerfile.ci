@@ -45,16 +45,20 @@ RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt \
         bandit \
     && python -m pip check
 
-RUN mkdir -p /opt/weekend-report-ci \
+RUN mkdir -p /usr/local/share/weekend-report-ci \
     && sha256sum /tmp/requirements.txt | cut -d ' ' -f 1 \
-        > /opt/weekend-report-ci/requirements.sha256 \
+        > /usr/local/share/weekend-report-ci/requirements.sha256 \
     && python -m pip freeze \
-        > /opt/weekend-report-ci/installed-packages.txt \
+        > /usr/local/share/weekend-report-ci/installed-packages.txt \
     && python -m pip_audit \
         --format json \
-        --output /opt/weekend-report-ci/pip-audit.json \
+        --output /usr/local/share/weekend-report-ci/pip-audit.json \
     && date -u +"%Y-%m-%dT%H:%M:%SZ" \
-        > /opt/weekend-report-ci/pip-audit-passed-at
+        > /usr/local/share/weekend-report-ci/pip-audit-passed-at
+
+RUN test -s /usr/local/share/weekend-report-ci/requirements.sha256 \
+    && test -s /usr/local/share/weekend-report-ci/pip-audit.json \
+    && test -s /usr/local/share/weekend-report-ci/pip-audit-passed-at
 
 RUN python -c "import fastapi, starlette, uvicorn, jinja2, httpx, yaml, psycopg"
 
