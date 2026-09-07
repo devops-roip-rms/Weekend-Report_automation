@@ -1,26 +1,24 @@
 from __future__ import annotations
 
 import copy
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import httpx
 
 from app.collectors.rabbitmq import RabbitMQCollector
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import CheckStatus
 from app.evidence.manager import EvidenceManager
 from app.orchestrator.run_context import RunContext
 from app.validators.rabbitmq import RabbitMQValidator
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class RabbitMQTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.config = load_config_dir("tests/fixtures/config_valid")
+        self.config = load_fixture_config()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.ctx = RunContext(
@@ -114,9 +112,9 @@ class RabbitMQTests(unittest.TestCase):
         config["rabbitmq_expected"]["sites"] = {"site1": {"required": True}}
         config["rabbitmq_expected"]["connections"] = {
             "site1": {
-                "url_env": "RABBITMQ_SITE1_URL",
-                "user_env": "RABBITMQ_SITE1_USER",
-                "password_env": "RABBITMQ_SITE1_PASSWORD",
+                "url": "https://rabbitmq.invalid",
+                "user": "fixture",
+                "password": "fixture",
                 "tls_verify": True,
                 "timeout_seconds": 1,
                 "retry_attempts": 2,
@@ -137,17 +135,9 @@ class RabbitMQTests(unittest.TestCase):
                 return httpx.Response(200, json=[_node()])
             return httpx.Response(404, json={"missing": True})
 
-        with patch.dict(
-            os.environ,
-            {
-                "RABBITMQ_SITE1_URL": "https://rabbitmq.invalid",
-                "RABBITMQ_SITE1_USER": "fixture",
-                "RABBITMQ_SITE1_PASSWORD": "fixture",
-            },
-        ):
-            actual = RabbitMQCollector(transport=httpx.MockTransport(handler)).collect(
-                RunContext(self.ctx.run_id, config, self.ctx.repository, self.ctx.evidence)
-            )
+        actual = RabbitMQCollector(transport=httpx.MockTransport(handler)).collect(
+            RunContext(self.ctx.run_id, config, self.ctx.repository, self.ctx.evidence)
+        )
         self.assertEqual(actual["errors"], [])
         queue = actual["sites"]["site1"]["queues"][0]
         self.assertEqual(queue["ready"], 0)
@@ -162,9 +152,9 @@ class RabbitMQTests(unittest.TestCase):
         config["rabbitmq_expected"]["sites"] = {"site1": {"required": True}}
         config["rabbitmq_expected"]["connections"] = {
             "site1": {
-                "url_env": "RABBITMQ_SITE1_URL",
-                "user_env": "RABBITMQ_SITE1_USER",
-                "password_env": "RABBITMQ_SITE1_PASSWORD",
+                "url": "https://rabbitmq.invalid",
+                "user": "fixture",
+                "password": "fixture",
                 "tls_verify": True,
                 "timeout_seconds": 1,
                 "retry_attempts": 1,
@@ -176,22 +166,14 @@ class RabbitMQTests(unittest.TestCase):
                 return httpx.Response(200, json=[])
             return httpx.Response(200, json=[_node()])
 
-        with patch.dict(
-            os.environ,
-            {
-                "RABBITMQ_SITE1_URL": "https://rabbitmq.invalid",
-                "RABBITMQ_SITE1_USER": "fixture",
-                "RABBITMQ_SITE1_PASSWORD": "fixture",
-            },
-        ):
-            actual = RabbitMQCollector(transport=httpx.MockTransport(handler)).collect(
-                RunContext(
-                    self.ctx.run_id,
-                    config,
-                    self.ctx.repository,
-                    self.ctx.evidence,
-                )
+        actual = RabbitMQCollector(transport=httpx.MockTransport(handler)).collect(
+            RunContext(
+                self.ctx.run_id,
+                config,
+                self.ctx.repository,
+                self.ctx.evidence,
             )
+        )
 
         self.assertEqual(len(actual["errors"]), 1)
         self.assertEqual(
@@ -205,9 +187,9 @@ class RabbitMQTests(unittest.TestCase):
         config["rabbitmq_expected"]["sites"] = {"site1": {"required": True}}
         config["rabbitmq_expected"]["connections"] = {
             "site1": {
-                "url_env": "RABBITMQ_SITE1_URL",
-                "user_env": "RABBITMQ_SITE1_USER",
-                "password_env": "RABBITMQ_SITE1_PASSWORD",
+                "url": "https://rabbitmq.invalid",
+                "user": "fixture",
+                "password": "fixture",
                 "tls_verify": True,
                 "timeout_seconds": 1,
                 "retry_attempts": 1,
@@ -221,22 +203,14 @@ class RabbitMQTests(unittest.TestCase):
                 return httpx.Response(200, json=[])
             return httpx.Response(404)
 
-        with patch.dict(
-            os.environ,
-            {
-                "RABBITMQ_SITE1_URL": "https://rabbitmq.invalid",
-                "RABBITMQ_SITE1_USER": "fixture",
-                "RABBITMQ_SITE1_PASSWORD": "fixture",
-            },
-        ):
-            actual = RabbitMQCollector(transport=httpx.MockTransport(handler)).collect(
-                RunContext(
-                    self.ctx.run_id,
-                    config,
-                    self.ctx.repository,
-                    self.ctx.evidence,
-                )
+        actual = RabbitMQCollector(transport=httpx.MockTransport(handler)).collect(
+            RunContext(
+                self.ctx.run_id,
+                config,
+                self.ctx.repository,
+                self.ctx.evidence,
             )
+        )
 
         self.assertEqual(len(actual["errors"]), 1)
         self.assertEqual(

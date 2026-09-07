@@ -8,12 +8,17 @@ from app.orchestrator.run_context import RunContext
 from app.time_utils import iso_now
 
 FIELD_CHECK_IDS = {
-    "service_presence": "portainer.service.exists",
-    "desired_replicas": "portainer.service.desired_replicas",
-    "running_replicas": "portainer.service.running_replicas",
-    "healthy_replicas": "portainer.service.healthy_replicas",
-    "image": "portainer.service.image",
-    "service_state": "portainer.service.state",
+    "portainer": {
+        "service_presence": "portainer.service.exists",
+        "desired_replicas": "portainer.service.desired_replicas",
+        "running_replicas": "portainer.service.running_replicas",
+        "healthy_replicas": "portainer.service.healthy_replicas",
+        "image": "portainer.service.image",
+        "service_state": "portainer.service.state",
+    },
+    "doctor": {
+        "service_presence": "doctor.service.exists",
+    },
 }
 
 
@@ -37,20 +42,31 @@ class SiteParityValidator:
 
             module = rule.get("module")
             fields = rule.get("fields") or [rule.get("field")]
-            sites = rule.get("sites")
+            sites = _runtime_site_ids(config)
 
-            if not isinstance(module, str) or not isinstance(sites, list) or len(sites) != 2:
+            if (
+                not isinstance(module, str)
+                or "sites" in rule
+                or len(sites) != 2
+            ):
                 results.append(
                     CheckResult(
                         context.run_id,
                         "site_parity",
                         "parity.configuration",
                         CheckStatus.ERROR,
-                        "invalid parity rule configuration",
+                        "invalid parity rule or runtime site configuration",
                         site=None,
                         target=str(module or "unknown"),
-                        expected={"rule": rule},
-                        actual={"comparable": False},
+                        expected={
+                            "site_source": "runtime SITE_COUNT/SITE*_ID",
+                            "site_count": 2,
+                        },
+                        actual={
+                            "comparable": False,
+                            "runtime_sites": sites,
+                            "rules_contains_sites": "sites" in rule,
+                        },
                         started_at=started,
                         finished_at=iso_now(),
                         metadata={
@@ -61,15 +77,20 @@ class SiteParityValidator:
                 )
                 continue
 
-            site1, site2 = str(sites[0]), str(sites[1])
+            if not any(result.module == module for result in observed_results):
+                continue
+
+            site1, site2 = sites
 
             for field in [field for field in fields if isinstance(field, str) and field]:
                 value1, available1 = _extract(
                     by_module_site.get((module, site1), []),
+                    module,
                     field,
                 )
                 value2, available2 = _extract(
                     by_module_site.get((module, site2), []),
+                    module,
                     field,
                 )
 
@@ -163,8 +184,28 @@ class SiteParityValidator:
         return results
 
 
+def _runtime_site_ids(config: dict[str, Any]) -> list[str]:
+    configured = config.get("sites", {}).get("sites", [])
+    if not isinstance(configured, list):
+        return []
+
+    site_ids: list[str] = []
+    for site in configured:
+        if not isinstance(site, dict):
+            return []
+        site_id = site.get("id")
+        if not isinstance(site_id, str) or not site_id.strip():
+            return []
+        site_ids.append(site_id.strip())
+
+    if len(site_ids) != len(set(site_ids)):
+        return []
+    return site_ids
+
+
 def _extract(
     results: list[CheckResult],
+    module: str,
     field: str,
 ) -> tuple[dict[str, Any], bool]:
     """Extract reliable actual values for one configured parity field.
@@ -174,7 +215,7 @@ def _extract(
     when collection failed on both sites.
     """
 
-    check_id = FIELD_CHECK_IDS.get(field)
+    check_id = FIELD_CHECK_IDS.get(module, {}).get(field)
     if check_id is None:
         return {}, False
 

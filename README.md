@@ -1,10 +1,12 @@
 # Weekend Report Automation
 
-**Documentation synchronized:** 2026-08-23
+**Documentation synchronized:** 2026-09-06
 
 Weekend Report Automation is a manually triggered operational-validation application built with Python 3.14, FastAPI, a persistent worker, PostgreSQL, filesystem evidence storage, HTML review pages, immutable review snapshots, and one final PDF generated only after explicit human confirmation.
 
-The application is intentionally configuration-driven. The default `config/` directory is a production template containing controlled placeholders. It is expected to fail production preflight until the real environment values and policies are supplied and approved.
+The application is intentionally configuration-driven. The Docker image contains code only; deployment
+values come from external ENV files/secrets, and business validation policy comes from read-only
+`rules.yml`.
 
 ## Current Operating Model
 
@@ -50,7 +52,7 @@ The Weekend Report itself is never scheduled by GitHub Actions or GitLab CI/CD.
 - **worker**: persistent Python process that atomically claims `CREATED` runs and executes the orchestrator.
 - **database**: PostgreSQL in deployment; SQLite is used by safe local fixture tests.
 - **evidence**: persistent run evidence under the configured evidence root.
-- **configuration**: YAML expected state and policy under `config/`.
+- **configuration**: read-only `rules.yml` policy plus runtime ENV/secrets supplied outside the image.
 - **reporting**: frozen snapshot first, then exactly one final PDF rendered from that snapshot.
 - **traceability**: `application_version`, `build_id`, deterministic `configuration_hash`, plus optional Git commit metadata when available.
 
@@ -103,7 +105,8 @@ python scripts/ci.py postgres
 
 Never point that gate at a production/shared database.
 
-The production-template part of `python scripts/ci.py config` intentionally prints unresolved `<TBD>` / `<TO_VERIFY>` errors and finishes with:
+The expected-invalid part of `python scripts/ci.py config` intentionally proves unresolved
+deployment ENV does not pass production preflight and finishes with:
 
 ```text
 Configuration invalid as expected
@@ -235,10 +238,19 @@ GitHub Actions is usable now. GitLab CI/CD remains ready for later import/use on
 
 ## Configuration
 
-Secrets belong in a non-committed `.env`, Docker secrets, or another approved secret mechanism.
-Production Compose selects the already-built or loaded image with `WEEKEND_REPORT_IMAGE`.
-For local development this can remain `weekend-report:local`; for a verified release it should
-point at a loaded versioned image such as `weekend-report:v1.0.2`.
+Secrets and deployment values belong in non-committed ENV files under `deploy/docker/env/`, Docker
+secrets, or another approved secret mechanism. Production Compose selects the already-built or loaded
+image with `WEEKEND_REPORT_IMAGE`; for a verified release it should point at a loaded versioned image
+such as `weekend-report:v1.0.2`.
+
+Policy remains in YAML:
+
+```text
+deploy/docker/config/rules.yml
+```
+
+Deployment inventory, endpoints, and environment-specific targets are supplied through runtime ENV files.
+The application does not use per-module deployment YAML for those values.
 
 Do not put credentials in YAML, fixtures, documentation, image layers, or CI artifacts.
 
@@ -254,13 +266,13 @@ Real runs must stay blocked while required production values are unresolved.
 
 The framework supports the following module boundaries, but real environment enablement remains controlled:
 
-- Portainer: read-only Docker Swarm Service inspection.
+- Portainer: read-only Docker Swarm service discovery, independent site health, and cross-site parity.
 - RabbitMQ: Management API topology/metrics validation.
-- Infrastructure: read-only SSH/command collection for filesystem, NFS, and Chrony.
-- Database: adapter boundary for the owner-supplied existing sync function.
-- DOCTOR: manual or approved API mode.
+- Infrastructure: read-only SSH/command collection for root-filesystem usage and Chrony/NTP state.
+- Database: approved PowerShell adapter boundary; the production sync/check script is still empty and blocks live readiness.
+- DOCTOR: dynamic cross-site service validation is implemented, but the live API adapter is not implemented yet.
 - Splunk: human dashboard review.
-- Recording: existing-device start/stop workflow with strict cleanup/recovery safety.
+- Recording: existing-device workflow and recovery policy are implemented, but live collection/control remains intentionally blocked.
 
 Do not enable any live integration until the required environment values, expected state, authentication, evidence policy, and status semantics are approved.
 
@@ -284,9 +296,9 @@ See:
 
 - `docs/ARCHITECTURE.md`
 - `docs/CI_CD.md`
-- `docs/CONFIGURATION_GUIDE.md`
-- `docs/ENVIRONMENT_INPUTS_REQUIRED.md`
-- `docs/PORTABLE_DEPLOYMENT.md`
+- `docs/CONFIGURATION.md`
+- `docs/DEPLOYMENT.md`
 - `docs/RECOVERY_POLICY.md`
 - `docs/VALIDATION_CATALOG.md`
-- `docs/PROJECT_BUILD_REPORT.md`
+
+

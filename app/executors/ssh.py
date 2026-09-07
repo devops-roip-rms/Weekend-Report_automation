@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 from dataclasses import dataclass
 from typing import Any
@@ -26,12 +25,12 @@ class SSHExecutor:
         command: str,
         connect_timeout: int,
         command_timeout: int,
+        key_path: str,
+        known_hosts_path: str,
     ) -> SSHResult:
-        key_path = os.getenv("SSH_PRIVATE_KEY_PATH", "").strip()
         if not key_path:
             raise RuntimeError("SSH_PRIVATE_KEY_PATH is required for private-key SSH")
-        known_hosts = os.getenv("SSH_KNOWN_HOSTS_PATH", "").strip()
-        if not known_hosts:
+        if not known_hosts_path:
             raise RuntimeError("SSH_KNOWN_HOSTS_PATH is required for strict SSH host verification")
 
         target = f"{username}@{host}"
@@ -48,7 +47,7 @@ class SSHExecutor:
             "-o",
             "StrictHostKeyChecking=yes",
             "-o",
-            f"UserKnownHostsFile={known_hosts}",
+            f"UserKnownHostsFile={known_hosts_path}",
             "-o",
             f"ConnectTimeout={connect_timeout}",
         ]

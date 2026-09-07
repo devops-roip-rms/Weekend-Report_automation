@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import NoteScope, ReviewDecision, ReviewNote, RunState
 from app.evidence.manager import EvidenceManager
@@ -15,6 +14,7 @@ from app.orchestrator.runner import OrchestratorRunner
 from app.reporting.html import render_final_html
 from app.reporting.snapshot import finalize_run
 from app.review.finalization import FinalizationReadinessError
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class RunWorkflowTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class RunWorkflowTests(unittest.TestCase):
         self.repo = Repository("sqlite:///:memory:")
         self.addCleanup(self.repo.close)
         self.evidence = EvidenceManager(self.root / "evidence")
-        self.config = load_config_dir("tests/fixtures/config_valid")
+        self.config = load_fixture_config()
 
     def approval_config_with_result_notes_for_failures(self) -> dict:
         config = copy.deepcopy(self.config)

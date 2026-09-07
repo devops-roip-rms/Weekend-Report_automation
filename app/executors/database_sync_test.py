@@ -76,6 +76,9 @@ def inspect_database_sync_script(
 
 
 def _project_root(config: dict[str, Any]) -> Path:
+    project_root = config.get("_project_root")
+    if isinstance(project_root, str) and project_root:
+        return Path(project_root).resolve()
     config_dir = config.get("_config_dir")
     if isinstance(config_dir, str) and config_dir:
         return Path(config_dir).resolve().parent

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -9,7 +8,6 @@ from typing import Any
 import httpx
 
 from app.collectors.base import Collector
-from app.config.effective import resolve_portainer_expected
 from app.config.schema import is_unresolved_placeholder
 from app.orchestrator.run_context import RunContext
 from app.time_utils import iso_now
@@ -298,7 +296,6 @@ class PortainerCollector(Collector):
         return self._collect_live(config, context)
 
     def _collect_live(self, config: dict[str, Any], context: RunContext) -> dict[str, Any]:
-        config = resolve_portainer_expected(config)
         sites: dict[str, Any] = {}
         errors: list[dict[str, Any]] = []
         for site_id, site_config in (config.get("sites") or {}).items():
@@ -372,14 +369,12 @@ def _client_settings(site_id: str, site_config: dict[str, Any]) -> PortainerClie
     auth = connection.get("auth") or {}
     timeout_cfg = connection.get("timeouts") or {}
     retry_cfg = connection.get("retries") or {}
-    url_env = connection.get("url_env")
-    token_env = auth.get("token_env")
     auth_type = auth.get("type")
     endpoint_id = connection.get("endpoint_id")
     api_contract = connection.get("api_contract")
-    base_url = _env_required(url_env, site_id, "Portainer URL")
+    base_url = _required_string(connection.get("url"), site_id, "url")
     token = (
-        _env_required(token_env, site_id, "Portainer token")
+        _required_string(auth.get("token"), site_id, "auth.token")
         if auth_type in TOKEN_AUTH_TYPES
         else None
     )
@@ -701,19 +696,6 @@ def _required_string(value: Any, site: str, field: str) -> str:
     return value.strip()
 
 
-def _env_required(env_name: Any, site: str, label: str) -> str:
-    name = _required_string(env_name, site, f"{label} env reference")
-    value = os.getenv(name, "").strip()
-    if not value or is_unresolved_placeholder(value):
-        raise PortainerError(
-            "PORTAINER_CONFIGURATION_ERROR",
-            f"{label} runtime environment variable is missing or unresolved: {name}",
-            site=site,
-            metadata={"env": name},
-        )
-    return value
-
-
 def _tls_verify(tls: dict[str, Any], site: str) -> bool | str:
     value = tls.get("verify")
     if is_unresolved_placeholder(value) or value is None:
@@ -725,16 +707,7 @@ def _tls_verify(tls: dict[str, Any], site: str) -> bool | str:
     if value is True:
         return True
     if value == "custom_ca":
-        ca_env = _required_string(tls.get("ca_file_env"), site, "tls.ca_file_env")
-        ca_file = os.getenv(ca_env, "").strip()
-        if not ca_file or is_unresolved_placeholder(ca_file):
-            raise PortainerError(
-                "PORTAINER_CONFIGURATION_ERROR",
-                f"Portainer CA certificate path is missing or unresolved: {ca_env}",
-                site=site,
-                metadata={"env": ca_env},
-            )
-        return ca_file
+        return _required_string(tls.get("ca_file"), site, "tls.ca_file")
     if value is False:
         raise PortainerError(
             "PORTAINER_CONFIGURATION_ERROR",

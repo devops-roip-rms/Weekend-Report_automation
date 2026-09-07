@@ -61,6 +61,8 @@ class InfrastructureCollector(Collector):
         hostname = str(server.get("hostname") or "")
         port = int(server.get("ssh_port") or 22)
         username = str(ssh_config.get("username") or "")
+        key_path = str(ssh_config.get("private_key_path") or "")
+        known_hosts_path = str(ssh_config.get("known_hosts_path") or "")
         connect_timeout = int(ssh_config.get("connect_timeout") or 5)
         command_timeout = int(ssh_config.get("command_timeout") or 5)
         payload: dict[str, Any] = {
@@ -78,6 +80,8 @@ class InfrastructureCollector(Collector):
                 command=str(df_command),
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
+                key_path=key_path,
+                known_hosts_path=known_hosts_path,
             )
             payload["commands"]["df"] = {
                 "exit_code": df.exit_code,
@@ -111,6 +115,8 @@ class InfrastructureCollector(Collector):
                 command="timedatectl show -p Timezone --value",
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
+                key_path=key_path,
+                known_hosts_path=known_hosts_path,
             )
             tracking = self.ssh.run(
                 host=hostname,
@@ -119,6 +125,8 @@ class InfrastructureCollector(Collector):
                 command="chronyc tracking",
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
+                key_path=key_path,
+                known_hosts_path=known_hosts_path,
             )
             sources = self.ssh.run(
                 host=hostname,
@@ -127,6 +135,8 @@ class InfrastructureCollector(Collector):
                 command="chronyc sources -n",
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
+                key_path=key_path,
+                known_hosts_path=known_hosts_path,
             )
             payload["commands"]["timezone"] = {"exit_code": timezone.exit_code}
             payload["commands"]["chronyc_tracking"] = {"exit_code": tracking.exit_code}

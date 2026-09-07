@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import CheckResult, CheckStatus, NoteScope, ReviewDecision, ReviewNote
 from app.evidence.manager import EvidenceManager
@@ -13,11 +12,13 @@ from app.orchestrator.aggregation import aggregate_status
 from app.orchestrator.run_context import RunContext
 from app.review.finalization import validate_finalization_readiness
 from app.validators.doctor import DoctorValidator
+from app.validators.site_parity import SiteParityValidator
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class DoctorTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.config = load_config_dir("tests/fixtures/config_valid")
+        self.config = load_fixture_config()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = Repository("sqlite:///:memory:")
@@ -44,13 +45,22 @@ class DoctorTests(unittest.TestCase):
         config["rules"]["review"]["required_module_notes"] = []
         return config
 
-    def test_all_17_services_healthy_on_both_sites_pass(self):
-        results = self.validate(self.fixture_actual())
+    def test_dynamic_discovered_services_healthy_on_both_sites_pass(self):
+        actual = self.fixture_actual()
+        actual["sites"]["site1"]["services"]["service-18"] = {"healthy": True}
+        actual["sites"]["site2"]["services"]["service-18"] = {"healthy": True}
+
+        results = self.validate(actual)
         service_results = [
             result for result in results if result.check_id == "doctor.service.health"
         ]
-        self.assertEqual(len(service_results), 34)
-        self.assertEqual([result.status for result in service_results], [CheckStatus.PASS] * 34)
+        presence_results = [
+            result for result in results if result.check_id == "doctor.service.exists"
+        ]
+        self.assertEqual(len(service_results), 36)
+        self.assertEqual(len(presence_results), 36)
+        self.assertEqual([result.status for result in service_results], [CheckStatus.PASS] * 36)
+        self.assertEqual([result.status for result in presence_results], [CheckStatus.PASS] * 36)
         self.assertEqual(_module_status(results), CheckStatus.PASS)
 
     def test_unhealthy_service_stays_error_and_module_requires_manual_review(self):
@@ -61,7 +71,11 @@ class DoctorTests(unittest.TestCase):
         }
         results = self.validate(actual)
         unhealthy = [
-            result for result in results if result.site == "site1" and result.target == "service-03"
+            result
+            for result in results
+            if result.check_id == "doctor.service.health"
+            and result.site == "site1"
+            and result.target == "service-03"
         ][0]
         self.assertEqual(unhealthy.status, CheckStatus.ERROR)
         self.assertTrue(unhealthy.metadata["reviewable_health_issue"])
@@ -70,17 +84,61 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(_module_status(results), CheckStatus.MANUAL_REVIEW)
         self.assertEqual(aggregate_status(results, self.config), CheckStatus.MANUAL_REVIEW)
 
-    def test_missing_expected_service_is_reviewable_health_error(self):
+    def test_service_set_mismatch_fails_cross_site_parity(self):
         actual = self.fixture_actual()
         del actual["sites"]["site2"]["services"]["service-17"]
+
         results = self.validate(actual)
-        missing = [
-            result for result in results if result.site == "site2" and result.target == "service-17"
+        self.assertEqual(_module_status(results), CheckStatus.PASS)
+
+        parity = SiteParityValidator().validate(
+            {"results": results},
+            self.config,
+            self.ctx,
+        )
+        doctor_parity = [
+            result for result in parity if result.check_id == "parity.doctor.service_presence"
         ][0]
-        self.assertEqual(missing.status, CheckStatus.ERROR)
-        self.assertEqual(missing.metadata["issue"], "missing_expected_service")
-        self.assertTrue(missing.metadata["reviewable_health_issue"])
-        self.assertEqual(_module_status(results), CheckStatus.MANUAL_REVIEW)
+        self.assertEqual(doctor_parity.status, CheckStatus.FAIL)
+        self.assertFalse(doctor_parity.actual["match"])
+
+
+    def test_doctor_uses_runtime_site_ids(self):
+        config = copy.deepcopy(self.config)
+        config["sites"]["sites"][0]["id"] = "primary"
+        config["sites"]["sites"][1]["id"] = "secondary"
+        actual = self.fixture_actual()
+        actual["sites"]["primary"] = actual["sites"].pop("site1")
+        actual["sites"]["secondary"] = actual["sites"].pop("site2")
+
+        ctx = RunContext(
+            self.ctx.run_id,
+            config,
+            self.repo,
+            self.ctx.evidence,
+        )
+        results = DoctorValidator().validate(actual, config, ctx)
+
+        self.assertEqual(_module_status(results), CheckStatus.PASS)
+        self.assertEqual(
+            {result.site for result in results if result.check_id == "doctor.service.health"},
+            {"primary", "secondary"},
+        )
+
+    def test_site_with_no_discovered_services_is_technical_error(self):
+        actual = self.fixture_actual()
+        actual["sites"]["site2"]["services"] = {}
+
+        results = self.validate(actual)
+
+        collection = [
+            result
+            for result in results
+            if result.check_id == "doctor.collection" and result.site == "site2"
+        ][0]
+        self.assertEqual(collection.status, CheckStatus.ERROR)
+        self.assertEqual(collection.metadata["error_code"], "DOCTOR_NO_SERVICES_DISCOVERED")
+        self.assertEqual(_module_status(results), CheckStatus.ERROR)
 
     def test_collection_error_remains_technical_module_error(self):
         actual = {
@@ -208,7 +266,11 @@ class DoctorTests(unittest.TestCase):
         results = self.validate(actual)
 
         unhealthy = [
-            result for result in results if result.site == "site1" and result.target == "service-03"
+            result
+            for result in results
+            if result.check_id == "doctor.service.health"
+            and result.site == "site1"
+            and result.target == "service-03"
         ][0]
 
         self.assertEqual(unhealthy.status, CheckStatus.ERROR)

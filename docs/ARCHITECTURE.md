@@ -1,6 +1,6 @@
 # Architecture
 
-**Documentation synchronized:** 2026-08-23
+**Documentation synchronized:** 2026-09-06
 
 ## 1. System Purpose
 
@@ -118,6 +118,9 @@ Collectors do not decide business PASS/FAIL policy.
 
 Validators do not invent actual state.
 
+The Docker image contains code only. Deployment values, endpoints, site inventory, and secrets are
+provided through external ENV/secrets. `rules.yml` is the read-only policy file.
+
 ## 6. Evidence and Review
 
 Evidence paths are stored relative to the configured evidence root.
@@ -172,21 +175,23 @@ Weekend Report Worker
 
 The application does not expose Portainer mutation operations.
 
-Expected-state validation occurs independently per site before cross-site parity.
+Services and tasks are discovered dynamically. Independent site-health validation occurs before
+cross-site parity.
 
 ```text
-Site 1 actual -> Site 1 expected-state validation
-Site 2 actual -> Site 2 expected-state validation
+Site 1 actual -> Site 1 health validation
+Site 2 actual -> Site 2 health validation
                                |
                                v
                        configured parity
 ```
 
-Both sites being identically wrong must still fail expected-state validation.
+Both sites being identically wrong must still fail independent site-health validation.
 
 ### 7.2 RabbitMQ
 
-RabbitMQ expected state contains Management API connection references, required sites, all-queue zero-count policy, queue recheck policy, and all-node resource-state policy.
+RabbitMQ runtime ENV contains Management API connection values and required sites. `rules.yml`
+contains all-queue zero-count policy, queue recheck policy, and all-node resource-state policy.
 
 Actual state comes from the RabbitMQ Management API or fixture actuals.
 
@@ -240,7 +245,7 @@ Validation covers:
 
 ### 7.6 DOCTOR
 
-DOCTOR currently uses API mode with exactly 17 expected services per site.
+DOCTOR API mode uses dynamic service discovery per site. Discovered services are validated independently for health and the two site service sets are compared for parity.
 
 API mode requires a verified endpoint/schema/auth/validation contract. Reviewable service-health issues remain service-level `ERROR` findings and roll the module to `MANUAL_REVIEW`; transport/API/authentication/timeout/schema/collection errors remain blocking `ERROR`s.
 
@@ -263,7 +268,7 @@ Opening a dashboard URL is not review evidence by itself. Required review is sat
 
 ## 8. Aggregation and Finalization
 
-`config/rules.yml` is authoritative for:
+`deploy/docker/config/rules.yml` is the single authoritative runtime policy source for:
 
 - module enablement;
 - module requiredness;

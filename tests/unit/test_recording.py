@@ -6,18 +6,18 @@ import unittest
 from pathlib import Path
 
 from app.collectors.recording import RecordingCollector
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import CheckStatus, RunState
 from app.evidence.manager import EvidenceManager
 from app.orchestrator.run_context import RunContext
 from app.orchestrator.runner import OrchestratorRunner
 from app.validators.recording import OBSERVATION_POINTS, RecordingValidator
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class RecordingTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.config = load_config_dir("tests/fixtures/config_valid")
+        self.config = load_fixture_config()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = Repository("sqlite:///:memory:")

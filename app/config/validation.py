@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from app.config.effective import resolve_portainer_expected
 from app.config.schema import (
     DATABASE_SUPPORTED_ADAPTERS,
     DATABASE_SUPPORTED_COLLECTION_MODES,
@@ -32,7 +31,7 @@ UNSET_RUNTIME_VALUES = {"", "<TBD>", "<TO_VERIFY>", "UNKNOWN"}
 PORTAINER_SUPPORTED_COLLECTION_MODES = {"fixture", "live"}
 PORTAINER_SUPPORTED_AUTH_TYPES = {"bearer_token", "jwt", "x_api_key", "none"}
 PORTAINER_SUPPORTED_API_CONTRACTS = {"docker_proxy_v1"}
-PORTAINER_SUPPORTED_IMAGE_COMPARISONS = {"full_reference", "repository_tag", "digest"}
+DOCTOR_PARITY_FIELDS = {"service_presence"}
 PORTAINER_PARITY_FIELDS = {
     "service_presence",
     "desired_replicas",
@@ -222,15 +221,21 @@ def _validate_parity(config: dict[str, Any], report: ValidationReport) -> None:
                         f"{path}.fields[{field_idx}]",
                         "unknown Portainer parity field",
                     )
-        sites = rule.get("sites")
-        if not isinstance(sites, list) or len(sites) != 2:
-            report.add_error(f"{path}.sites", "must contain exactly two sites")
-        else:
-            for site_idx, site in enumerate(sites):
-                if site in UNRESOLVED_PLACEHOLDERS:
-                    continue
-                if site not in site_ids:
-                    report.add_error(f"{path}.sites[{site_idx}]", "unknown site reference")
+                if module == "doctor" and field not in DOCTOR_PARITY_FIELDS:
+                    report.add_error(
+                        f"{path}.fields[{field_idx}]",
+                        "unknown DOCTOR parity field",
+                    )
+        if "sites" in rule:
+            report.add_error(
+                f"{path}.sites",
+                "must not be configured in rules; parity uses runtime SITE*_ID values",
+            )
+        if len(site_ids) != 2:
+            report.add_error(
+                path,
+                "enabled parity requires exactly two runtime sites from SITE_COUNT/SITE*_ID",
+            )
         mismatch_status = rule.get("mismatch_status")
         if isinstance(mismatch_status, str) and mismatch_status in UNRESOLVED_PLACEHOLDERS:
             pass
@@ -388,17 +393,37 @@ def _validate_portainer(
     if not isinstance(portainer, dict):
         report.add_error("portainer_expected", "must be an object")
         return
+    for obsolete_key in ["defaults", "services"]:
+        if obsolete_key in portainer:
+            report.add_error(
+                f"portainer_expected.{obsolete_key}",
+                "configured expected Portainer services were removed; "
+                "services are discovered from each site at runtime",
+            )
     mode = portainer.get("collection_mode")
     if mode is None:
         mode = "fixture" if portainer.get("fixture_actual") is not None else "live"
     if mode not in PORTAINER_SUPPORTED_COLLECTION_MODES and mode not in UNRESOLVED_PLACEHOLDERS:
         report.add_error("portainer_expected.collection_mode", "must be fixture or live")
         return
-    resolved_portainer = resolve_portainer_expected(config)
-    sites = resolved_portainer.get("sites", {})
+    if mode == "fixture":
+        if not isinstance(portainer.get("fixture_actual"), dict):
+            report.add_error(
+                "portainer_expected.fixture_actual",
+                "fixture mode requires fixture_actual",
+            )
+        return
+    sites = portainer.get("sites", {})
     if not isinstance(sites, dict) or not sites:
         report.add_error("portainer_expected.sites", "must define site mappings")
         return
+    expected_site_ids = _site_ids(config)
+    for expected_site_id in expected_site_ids:
+        if expected_site_id not in sites:
+            report.add_error(
+                f"portainer_expected.sites.{expected_site_id}",
+                "required site mapping is missing",
+            )
     for site_id, site_config in sites.items():
         if not isinstance(site_config, dict):
             report.add_error(f"portainer_expected.sites.{site_id}", "site must be an object")
@@ -409,15 +434,6 @@ def _validate_portainer(
                 f"portainer_expected.sites.{site_id}.environment_type",
                 "Portainer scope is Docker Swarm only",
             )
-        services = site_config.get("services")
-        if not isinstance(services, list) or not services:
-            report.add_error(
-                f"portainer_expected.sites.{site_id}.services",
-                "must resolve configured Swarm services from common inventory or site services",
-            )
-        else:
-            for idx, service in enumerate(services):
-                _validate_portainer_service(site_id, idx, service, report)
         if mode == "live":
             _validate_portainer_connection(
                 site_id,
@@ -431,80 +447,41 @@ def _validate_portainer(
             "portainer_expected.fixture_actual",
             "live Portainer mode must not include fixture fallback data",
         )
+    _validate_portainer_policy(config, report)
 
 
-def _validate_portainer_service(
-    site_id: str,
-    idx: int,
-    service: Any,
-    report: ValidationReport,
-) -> None:
-    path = f"portainer_expected.sites.{site_id}.services[{idx}]"
-    if not isinstance(service, dict):
-        report.add_error(path, "service must be an object")
+def _validate_portainer_policy(config: dict[str, Any], report: ValidationReport) -> None:
+    policy = config.get("rules", {}).get("portainer", {})
+    if not isinstance(policy, dict):
+        report.add_error("rules.portainer", "must be an object")
         return
-    if "name" not in service:
-        report.add_error(f"{path}.name", "is required")
-    required = service.get("required", True)
-    if required not in UNRESOLVED_PLACEHOLDERS and not isinstance(required, bool):
-        report.add_error(f"{path}.required", "must be boolean when explicitly set")
-    expected = service.get("expected")
-    if not isinstance(expected, dict):
-        report.add_error(
-            f"{path}.expected",
-            "must be an object",
-        )
-        return
-    for field_name in [
-        "desired_replicas",
-        "running_replicas",
-        "healthy_replicas",
-    ]:
-        value = expected.get(field_name)
-        if is_unresolved_placeholder(value):
-            continue
-        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            report.add_error(
-                f"{path}.expected.{field_name}",
-                "must be a non-negative integer",
-            )
-    service_state = expected.get("service_state")
-    if service_state is not None and service_state not in UNRESOLVED_PLACEHOLDERS:
-        if not isinstance(service_state, str) or not service_state:
-            report.add_error(f"{path}.expected.service_state", "must be non-empty string")
-    task_policy = expected.get("task_state_policy", {})
-    if isinstance(task_policy, str) and task_policy in UNRESOLVED_PLACEHOLDERS:
-        pass
-    elif not isinstance(task_policy, dict):
-        report.add_error(f"{path}.expected.task_state_policy", "must be an object")
+    task_policy = policy.get("task_state_policy", {})
+    if not isinstance(task_policy, dict):
+        report.add_error("rules.portainer.task_state_policy", "must be an object")
     else:
         for state, action in task_policy.items():
             if str(state) not in {"failed", "rejected", "restarting", "starting"}:
                 report.add_error(
-                    f"{path}.expected.task_state_policy.{state}",
+                    f"rules.portainer.task_state_policy.{state}",
                     "unsupported task state policy key",
                 )
-            if action in UNRESOLVED_PLACEHOLDERS:
-                continue
             if action not in {"IGNORE", "WARNING", "FAIL", "ERROR"}:
                 report.add_error(
-                    f"{path}.expected.task_state_policy.{state}",
+                    f"rules.portainer.task_state_policy.{state}",
                     "must be IGNORE, WARNING, FAIL, or ERROR",
                 )
-    image = expected.get("image")
-    comparison = expected.get("image_comparison", "full_reference")
-    if isinstance(image, dict):
-        comparison = image.get("comparison", comparison)
-        if "reference" not in image and "value" not in image:
-            report.add_error(f"{path}.expected.image.reference", "is required")
-    if (
-        comparison not in PORTAINER_SUPPORTED_IMAGE_COMPARISONS
-        and comparison not in UNRESOLVED_PLACEHOLDERS
-    ):
-        report.add_error(
-            f"{path}.expected.image_comparison",
-            "must be full_reference, repository_tag, or digest",
-        )
+    state_policy = policy.get("service_state_policy", {})
+    if not isinstance(state_policy, dict):
+        report.add_error("rules.portainer.service_state_policy", "must be an object")
+    else:
+        for state, action in state_policy.items():
+            if not isinstance(state, str) or not state.strip():
+                report.add_error("rules.portainer.service_state_policy", "state must be non-empty")
+            if action not in {"PASS", "WARNING", "FAIL", "ERROR"}:
+                report.add_error(
+                    f"rules.portainer.service_state_policy.{state}",
+                    "must be PASS, WARNING, FAIL, or ERROR",
+                )
 
 
 def _validate_portainer_connection(
@@ -519,11 +496,11 @@ def _validate_portainer_connection(
     if not isinstance(connection, dict):
         report.add_error(path, "live mode requires a connection object")
         return
-    _validate_env_reference(
-        connection.get("url_env"),
-        f"{path}.url_env",
+    _validate_runtime_value(
+        connection.get("url"),
+        f"{path}.url",
         report,
-        production_preflight=production_preflight and portainer_enabled,
+        required=production_preflight and portainer_enabled,
         label="Portainer URL",
     )
     endpoint_id = connection.get("endpoint_id")
@@ -555,11 +532,11 @@ def _validate_portainer_connection(
             "unsupported authentication type",
         )
     if auth_type in {"bearer_token", "jwt", "x_api_key"}:
-        _validate_env_reference(
-            auth.get("token_env"),
-            f"{path}.auth.token_env",
+        _validate_runtime_value(
+            auth.get("token"),
+            f"{path}.auth.token",
             report,
-            production_preflight=production_preflight and portainer_enabled,
+            required=production_preflight and portainer_enabled,
             label="Portainer token",
         )
     tls = connection.get("tls", {})
@@ -572,11 +549,11 @@ def _validate_portainer_connection(
         elif verify is True or verify in UNRESOLVED_PLACEHOLDERS:
             pass
         elif verify == "custom_ca":
-            _validate_env_reference(
-                tls.get("ca_file_env"),
-                f"{path}.tls.ca_file_env",
+            _validate_runtime_value(
+                tls.get("ca_file"),
+                f"{path}.tls.ca_file",
                 report,
-                production_preflight=production_preflight and portainer_enabled,
+                required=production_preflight and portainer_enabled,
                 label="Portainer CA file",
             )
         else:
@@ -649,27 +626,6 @@ def _validate_doctor(config: dict[str, Any], report: ValidationReport) -> None:
             if not isinstance(value, str) or not value.strip():
                 report.add_error(f"doctor.doctor.api.{field_name}", "must be a non-empty string")
 
-    services = doctor.get("expected_services")
-    if not isinstance(services, list):
-        report.add_error("doctor.doctor.expected_services", "must be a list")
-    else:
-        if len(services) != 17:
-            report.add_error(
-                "doctor.doctor.expected_services",
-                "must contain exactly 17 expected microservices",
-            )
-        seen: set[str] = set()
-        for idx, service in enumerate(services):
-            path = f"doctor.doctor.expected_services[{idx}]"
-            if is_unresolved_placeholder(service):
-                continue
-            if not isinstance(service, str) or not service.strip():
-                report.add_error(path, "must be a non-empty service name")
-                continue
-            if service in seen:
-                report.add_error(path, f"duplicate expected service {service!r}")
-            seen.add(service)
-
     validation = doctor.get("validation")
     if not isinstance(validation, dict):
         report.add_error(
@@ -682,7 +638,6 @@ def _validate_doctor(config: dict[str, Any], report: ValidationReport) -> None:
             "unhealthy_status": "ERROR",
             "all_healthy_status": "PASS",
             "any_unhealthy_status": "MANUAL_REVIEW",
-            "missing_expected_service_status": "ERROR",
         }
         for field_name, expected_status in expected_statuses.items():
             status = validation.get(field_name)
@@ -887,25 +842,25 @@ def _validate_rabbitmq_connection(
     if not isinstance(connection, dict):
         report.add_error(path, "live mode requires a connection object")
         return
-    _validate_env_reference(
-        connection.get("url_env"),
-        f"{path}.url_env",
+    _validate_runtime_value(
+        connection.get("url"),
+        f"{path}.url",
         report,
-        production_preflight=production_preflight,
+        required=production_preflight,
         label="RabbitMQ URL",
     )
-    _validate_env_reference(
-        connection.get("user_env"),
-        f"{path}.user_env",
+    _validate_runtime_value(
+        connection.get("user"),
+        f"{path}.user",
         report,
-        production_preflight=production_preflight,
+        required=production_preflight,
         label="RabbitMQ user",
     )
-    _validate_env_reference(
-        connection.get("password_env"),
-        f"{path}.password_env",
+    _validate_runtime_value(
+        connection.get("password"),
+        f"{path}.password",
         report,
-        production_preflight=production_preflight,
+        required=production_preflight,
         label="RabbitMQ password",
     )
     tls_verify = connection.get("tls_verify")
@@ -988,11 +943,11 @@ def _validate_recording(
     if not isinstance(manager, dict):
         report.add_error("recording.manager", "live mode requires a manager object")
     else:
-        _validate_env_reference(
-            manager.get("url_env"),
-            "recording.manager.url_env",
+        _validate_runtime_value(
+            manager.get("url"),
+            "recording.manager.url",
             report,
-            production_preflight=check_runtime,
+            required=check_runtime,
             label="Recording Manager WebApp URL",
         )
         selection = manager.get("device_selection")
@@ -1042,11 +997,11 @@ def _validate_recording(
         if not isinstance(webapp, dict):
             report.add_error(f"{path}.webapp", "must be an object")
         else:
-            _validate_env_reference(
-                webapp.get("url_env"),
-                f"{path}.webapp.url_env",
+            _validate_runtime_value(
+                webapp.get("url"),
+                f"{path}.webapp.url",
                 report,
-                production_preflight=check_runtime,
+                required=check_runtime,
                 label=f"Recording {site_id} WebApp URL",
             )
             capture = webapp.get("capture_baseline_at_test_start")
@@ -1196,26 +1151,37 @@ def _validate_servers(
         _validate_positive_number(ssh.get("connect_timeout"), "servers.ssh.connect_timeout", report)
         _validate_positive_number(ssh.get("command_timeout"), "servers.ssh.command_timeout", report)
 
+        private_key_path = ssh.get("private_key_path")
         if (
             auth == "private_key"
             and production_preflight
             and _infrastructure_enabled(config)
-            and _runtime_unset(os.getenv("SSH_PRIVATE_KEY_PATH"))
+            and _runtime_unset(private_key_path)
         ):
             report.add_error(
-                "servers.ssh.auth",
+                "servers.ssh.private_key_path",
                 "SSH_PRIVATE_KEY_PATH runtime value is missing or unresolved",
             )
+        elif not _runtime_unset(private_key_path) and (
+            not isinstance(private_key_path, str) or not private_key_path.strip()
+        ):
+            report.add_error("servers.ssh.private_key_path", "must be a non-empty string")
+
+        known_hosts_path = ssh.get("known_hosts_path")
         if (
             host_policy == "strict"
             and production_preflight
             and _infrastructure_enabled(config)
-            and _runtime_unset(os.getenv("SSH_KNOWN_HOSTS_PATH"))
+            and _runtime_unset(known_hosts_path)
         ):
             report.add_error(
-                "servers.ssh.host_key_policy",
+                "servers.ssh.known_hosts_path",
                 "SSH_KNOWN_HOSTS_PATH runtime value is missing or unresolved",
             )
+        elif not _runtime_unset(known_hosts_path) and (
+            not isinstance(known_hosts_path, str) or not known_hosts_path.strip()
+        ):
+            report.add_error("servers.ssh.known_hosts_path", "must be a non-empty string")
 
     sites = servers_config.get("sites")
     if not isinstance(sites, dict) or not sites:
@@ -1431,9 +1397,15 @@ def _validate_database(
             elif path_obj.suffix.lower() != ".ps1":
                 report.add_error("database.script.path", "must reference a .ps1 PowerShell script")
             elif production_preflight:
+                project_root_value = config.get("_project_root")
                 config_dir = config.get("_config_dir")
-                if isinstance(config_dir, str) and config_dir:
+                if isinstance(project_root_value, str) and project_root_value:
+                    project_root = Path(project_root_value).resolve()
+                elif isinstance(config_dir, str) and config_dir:
                     project_root = Path(config_dir).resolve().parent
+                else:
+                    project_root = None
+                if project_root is not None:
                     full_script_path = project_root / path_obj
                     if not full_script_path.is_file():
                         report.add_error(
@@ -1478,21 +1450,21 @@ def _validate_database(
                 )
 
 
-def _validate_env_reference(
-    env_name: Any,
+def _validate_runtime_value(
+    value: Any,
     path: str,
     report: ValidationReport,
     *,
-    production_preflight: bool,
+    required: bool,
     label: str,
 ) -> None:
-    if is_unresolved_placeholder(env_name):
+    if is_unresolved_placeholder(value):
+        if required:
+            report.add_error(path, f"{label} runtime value is missing or unresolved")
         return
-    if not isinstance(env_name, str) or not env_name.strip():
-        report.add_error(path, f"{label} environment variable name is required")
-        return
-    if production_preflight and _runtime_unset(os.getenv(env_name)):
-        report.add_error(path, f"{label} runtime value is missing or unresolved: {env_name}")
+    if not isinstance(value, str) or not value.strip():
+        if required:
+            report.add_error(path, f"{label} runtime value is required")
 
 
 def _validate_number(value: Any, path: str, report: ValidationReport) -> None:

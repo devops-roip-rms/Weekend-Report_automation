@@ -5,17 +5,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import CheckStatus
 from app.evidence.manager import EvidenceManager
 from app.orchestrator.run_context import RunContext
 from app.validators.recording import RecordingValidator
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class RecordingSafetyTests(unittest.TestCase):
     def setUp(self):
-        self.config = load_config_dir("tests/fixtures/config_valid")
+        self.config = load_fixture_config()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 

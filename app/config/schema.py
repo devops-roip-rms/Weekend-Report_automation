@@ -2,17 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-REQUIRED_FILES = [
-    "sites.yml",
-    "servers.yml",
-    "rules.yml",
-    "portainer_expected.yml",
-    "rabbitmq_expected.yml",
-    "doctor.yml",
-    "recording.yml",
-    "database.yml",
-    "splunk_dashboards.yml",
-]
+REQUIRED_FILES = ["rules.yml"]
 
 PLACEHOLDER_TBD = "<TBD>"
 PLACEHOLDER_TO_VERIFY = "<TO_VERIFY>"

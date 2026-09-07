@@ -80,9 +80,12 @@ def _validate_server(
                 site,
                 server_id,
                 {"reachable": True},
-                {"reachable": True},
-                CheckStatus.PASS,
-                "server reachable",
+                {
+                    "reachable": False,
+                    "error": outputs.get("df_error") or "SSH connection failed",
+                },
+                CheckStatus.ERROR,
+                "server unreachable over SSH",
                 started,
             )
         )

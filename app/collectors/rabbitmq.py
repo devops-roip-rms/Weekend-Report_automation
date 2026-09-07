@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import os
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -302,9 +301,6 @@ def _client_settings(site_id: str, connection: Any) -> RabbitMQClientSettings:
             "RabbitMQ live collection requires a connection object",
             site=site_id,
         )
-    url_env = _required_string(connection.get("url_env"), site_id, "url_env")
-    user_env = _required_string(connection.get("user_env"), site_id, "user_env")
-    password_env = _required_string(connection.get("password_env"), site_id, "password_env")
     tls_verify = connection.get("tls_verify")
     if not isinstance(tls_verify, bool):
         raise RabbitMQError(
@@ -314,9 +310,9 @@ def _client_settings(site_id: str, connection: Any) -> RabbitMQClientSettings:
         )
     return RabbitMQClientSettings(
         site=site_id,
-        base_url=_env_required(url_env, site_id, "RabbitMQ URL"),
-        username=_env_required(user_env, site_id, "RabbitMQ user"),
-        password=_env_required(password_env, site_id, "RabbitMQ password"),
+        base_url=_required_string(connection.get("url"), site_id, "url"),
+        username=_required_string(connection.get("user"), site_id, "user"),
+        password=_required_string(connection.get("password"), site_id, "password"),
         tls_verify=tls_verify,
         timeout_seconds=_positive_number(
             connection.get("timeout_seconds"), site_id, "timeout_seconds"
@@ -442,18 +438,6 @@ def _required_string(value: Any, site: str, field: str) -> str:
             site=site,
         )
     return value.strip()
-
-
-def _env_required(env_name: str, site: str, label: str) -> str:
-    value = os.getenv(env_name, "").strip()
-    if not value or is_unresolved_placeholder(value):
-        raise RabbitMQError(
-            "RABBITMQ_CONFIGURATION_ERROR",
-            f"{label} runtime environment variable is missing or unresolved: {env_name}",
-            site=site,
-            metadata={"env": env_name},
-        )
-    return value
 
 
 def _positive_number(value: Any, site: str, field: str) -> float:

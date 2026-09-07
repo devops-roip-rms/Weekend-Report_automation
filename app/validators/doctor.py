@@ -58,17 +58,17 @@ class DoctorValidator(Validator):
             )
             return results
 
-        expected_services = doctor_config.get("expected_services", [])
         validation = doctor_config.get("validation", {})
         sites = actual.get("sites", {})
-        if not isinstance(sites, dict) or not sites:
+        runtime_sites = _runtime_site_ids(config)
+        if not isinstance(sites, dict) or not sites or len(runtime_sites) != 2:
             results.append(
                 _result(
                     context.run_id,
                     "collection",
                     None,
                     "doctor",
-                    {"sites": ["site1", "site2"]},
+                    {"runtime_sites": runtime_sites, "site_count": 2},
                     actual,
                     CheckStatus.ERROR,
                     "DOCTOR API collection did not return reliable site data",
@@ -81,7 +81,7 @@ class DoctorValidator(Validator):
             )
             return results
 
-        for site in ("site1", "site2"):
+        for site in runtime_sites:
             site_actual = sites.get(site)
             if not isinstance(site_actual, dict):
                 results.append(
@@ -99,16 +99,38 @@ class DoctorValidator(Validator):
                     )
                 )
                 continue
+
             services = _services_by_name(
                 site_actual.get("services", site_actual.get("service_health"))
             )
-            for service in expected_services:
+            if not services:
+                results.append(
+                    _result(
+                        context.run_id,
+                        "collection",
+                        site,
+                        site,
+                        {"discovered_services": ">=1"},
+                        {"discovered_services": []},
+                        CheckStatus.ERROR,
+                        "DOCTOR site response contained no discoverable services",
+                        started,
+                        metadata={
+                            "doctor_error_type": "technical",
+                            "error_code": "DOCTOR_NO_SERVICES_DISCOVERED",
+                        },
+                    )
+                )
+                continue
+
+            for service in sorted(services):
+                results.append(_presence_result(context.run_id, site, service, started))
                 results.append(
                     _service_result(
                         context.run_id,
                         site,
-                        str(service),
-                        services.get(str(service)),
+                        service,
+                        services[service],
                         validation,
                         started,
                     )
@@ -121,33 +143,28 @@ class DoctorValidator(Validator):
         return results
 
 
+def _presence_result(run_id: str, site: str, service: str, started: str) -> CheckResult:
+    return _result(
+        run_id,
+        "service.exists",
+        site,
+        service,
+        {"exists": True},
+        {"exists": True, "service": service},
+        CheckStatus.PASS,
+        "DOCTOR service discovered",
+        started,
+    )
+
+
 def _service_result(
     run_id: str,
     site: str,
     service: str,
-    actual: dict[str, Any] | None,
+    actual: dict[str, Any],
     validation: dict[str, Any],
     started: str,
 ) -> CheckResult:
-    if actual is None:
-        status = _status(validation.get("missing_expected_service_status"), CheckStatus.ERROR)
-        return _result(
-            run_id,
-            "service.health",
-            site,
-            service,
-            {"service": service, "healthy": True},
-            {"service": service, "present": False},
-            status,
-            "expected DOCTOR service is missing",
-            started,
-            metadata={
-                "doctor_error_type": "health_issue",
-                "reviewable_health_issue": True,
-                "issue": "missing_expected_service",
-            },
-        )
-
     healthy = actual.get("healthy")
     if healthy is True:
         return _result(
@@ -238,7 +255,7 @@ def _module_result(
         "doctor",
         {
             "mode": doctor_config.get("mode"),
-            "expected_services": doctor_config.get("expected_services", []),
+            "service_inventory": "dynamic_discovery",
         },
         {"mode": actual.get("mode"), "site_count": len(actual.get("sites", {}) or {})},
         status,
@@ -251,6 +268,25 @@ def _module_result(
             "technical_error": status == CheckStatus.ERROR,
         },
     )
+
+
+def _runtime_site_ids(config: dict[str, Any]) -> list[str]:
+    configured = config.get("sites", {}).get("sites", [])
+    if not isinstance(configured, list):
+        return []
+
+    site_ids: list[str] = []
+    for site in configured:
+        if not isinstance(site, dict):
+            return []
+        site_id = site.get("id")
+        if not isinstance(site_id, str) or not site_id.strip():
+            return []
+        site_ids.append(site_id.strip())
+
+    if len(site_ids) != len(set(site_ids)):
+        return []
+    return site_ids
 
 
 def _services_by_name(value: Any) -> dict[str, dict[str, Any]]:

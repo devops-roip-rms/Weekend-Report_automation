@@ -3,17 +3,17 @@ from __future__ import annotations
 import copy
 import unittest
 
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import CheckResult, CheckStatus, NoteScope, ReviewDecision, ReviewNote
 from app.review.finalization import validate_finalization_readiness
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class FinalizationReadinessTests(unittest.TestCase):
     def setUp(self):
         self.repo = Repository("sqlite:///:memory:")
         self.addCleanup(self.repo.close)
-        self.config = load_config_dir("tests/fixtures/config_valid")
+        self.config = load_fixture_config()
 
     def single_module_config(self, module: str = "portainer") -> dict:
         config = copy.deepcopy(self.config)

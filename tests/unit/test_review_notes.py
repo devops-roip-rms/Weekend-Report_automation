@@ -11,11 +11,11 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.api import dependencies
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import CheckResult, CheckStatus, RunState
 from app.evidence.manager import EvidenceManager
 from app.web.main import create_app
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class ReviewNoteApiTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.repo = Repository("sqlite:///:memory:")
         self.addCleanup(self.repo.close)
-        self.config = load_config_dir("tests/fixtures/config_valid")
+        self.config = load_fixture_config()
         self.evidence = EvidenceManager(Path(self.tmp.name) / "evidence")
         app = create_app()
 

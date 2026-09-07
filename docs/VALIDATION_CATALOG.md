@@ -1,6 +1,6 @@
 # Validation Catalog
 
-**Documentation synchronized:** 2026-08-23
+**Documentation synchronized:** 2026-09-06
 
 Controlled placeholders (`<TBD>`, `<TO_VERIFY>`) are not production-ready.
 
@@ -8,23 +8,22 @@ Required unresolved values fail production preflight.
 
 ## 1. Global Rules
 
-- Expected state lives in YAML.
-- Secrets live outside YAML.
+- Business policy lives in `rules.yml`.
+- Deployment state, endpoints, inventory, and secrets live outside the image in ENV/secrets.
 - Collectors gather actual state or return a clear blocked/error payload.
 - Validators produce `PASS`, `WARNING`, `FAIL`, `ERROR`, `SKIPPED`, or `MANUAL_REVIEW`.
 - Raw/normalized evidence is persisted with checksum metadata.
 - Cross-site parity is additive and never masks expected-state failures.
 - Reviewer notes are additive and never rewrite automated statuses.
-- `config/rules.yml` is authoritative for aggregation and approval readiness.
+- `deploy/docker/config/rules.yml` is authoritative for aggregation and approval readiness.
 - CI fixture success does not mean production integration is configured.
 
 ## 2. Configuration / Runtime Identity
 
 ### `config.preflight`
 
-Actual:
-- loaded YAML;
-- referenced runtime values;
+- loaded `rules.yml`;
+- runtime ENV values;
 - schema/reference integrity.
 
 Expected:
@@ -66,10 +65,11 @@ ERROR:
 ### `portainer.collection`
 
 Actual source:
-- read-only HTTPS GET to configured Portainer Server/API.
+- read-only HTTPS GET to configured Portainer Server/API;
+- dynamic Docker Swarm service and task discovery.
 
 Expected:
-- connection URL env reference;
+- connection URL;
 - auth;
 - endpoint ID;
 - API contract;
@@ -86,16 +86,15 @@ Evidence:
 - sanitized raw/error payload;
 - normalized state.
 
+### `portainer.discovery`
+
+ERROR:
+- site collection succeeded but no services were discovered.
+
 ### `portainer.service.exists`
 
 PASS:
-- required service exists.
-
-FAIL:
-- required service absent.
-
-SKIPPED:
-- explicitly optional service absent.
+- discovered service is present and can participate in reporting/parity.
 
 ERROR:
 - site state was not collected reliably.
@@ -103,10 +102,7 @@ ERROR:
 ### `portainer.service.desired_replicas`
 
 PASS:
-- actual desired equals expected desired.
-
-FAIL:
-- reliable mismatch.
+- actual desired replica count is present and valid.
 
 ERROR:
 - missing/unreliable data.
@@ -114,10 +110,10 @@ ERROR:
 ### `portainer.service.running_replicas`
 
 PASS:
-- running equals configured expectation.
+- running replicas equal the discovered desired replicas.
 
 FAIL:
-- reliable mismatch.
+- reliable running replica shortfall or surplus.
 
 ERROR:
 - unreliable count.
@@ -125,7 +121,7 @@ ERROR:
 ### `portainer.service.healthy_replicas`
 
 PASS:
-- healthy count satisfies expectation.
+- healthy replicas equal the discovered desired replicas.
 
 FAIL:
 - reliable healthy-count shortfall.
@@ -135,27 +131,19 @@ ERROR:
 
 ### `portainer.service.image`
 
-Comparison policy:
-- `full_reference`;
-- `repository_tag`;
-- `digest`.
-
 PASS:
-- configured match.
-
-FAIL:
-- reliable mismatch.
+- discovered service image value is present for evidence/parity.
 
 ERROR:
-- unsupported comparison/unreliable collection.
+- image value is missing/unreliable.
 
 ### `portainer.service.state`
 
 PASS:
-- actual service state equals expected.
+- actual service state is allowed by `rules.yml`.
 
 FAIL:
-- reliable mismatch.
+- actual service state maps to FAIL by `rules.yml`.
 
 ERROR:
 - malformed/unreliable state.
@@ -169,7 +157,7 @@ Evaluate independently:
 - restarting;
 - starting.
 
-Configured policy decides WARNING/FAIL/IGNORE as approved.
+Configured `rules.yml` policy decides WARNING/FAIL/IGNORE as approved.
 
 Unresolved policy is ERROR/preflight-blocking.
 
@@ -360,7 +348,7 @@ ERROR:
 
 ## 8. DOCTOR
 
-API mode expects exactly 17 services per site.
+API mode discovers the complete service inventory returned by each site dynamically. Every discovered service is validated independently, and the two discovered service sets must match.
 
 ### `doctor.collection`
 

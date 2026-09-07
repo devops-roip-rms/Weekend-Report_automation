@@ -13,7 +13,7 @@ _repo: Repository | None = None
 
 
 def get_config():
-    return load_config_dir(os.getenv("WEEKEND_REPORT_CONFIG_DIR", "config"))
+    return load_config_dir(os.getenv("WEEKEND_REPORT_CONFIG_DIR", "deploy/docker/config"))
 
 
 def get_repository() -> Repository:

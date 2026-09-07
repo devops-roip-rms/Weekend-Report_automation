@@ -10,11 +10,118 @@ import unittest
 import urllib.error
 import urllib.request
 from collections.abc import Iterable
+from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from tests.fixtures.config_factory import valid_env  # noqa: E402
+
 COMPOSE_FILE = ROOT / "deploy" / "docker" / "compose.yml"
 CI_COMPOSE_FILE = ROOT / "deploy" / "docker" / "compose.ci.yml"
+DEPLOY_ENV_DIR = ROOT / "deploy" / "docker" / "env"
+
+COMPOSE_ENV_FILE_KEYS = {
+    "app.env": [
+        "WEEKEND_REPORT_APP_VERSION",
+        "WEEKEND_REPORT_BUILD_ID",
+        "WEEKEND_REPORT_GIT_COMMIT",
+        "WEEKEND_REPORT_CONFIG_DIR",
+        "WEEKEND_REPORT_EVIDENCE_ROOT",
+        "WEEKEND_REPORT_WORKER_POLL_SECONDS",
+        "POSTGRES_DB",
+        "POSTGRES_USER",
+        "POSTGRES_PASSWORD",
+        "WEEKEND_REPORT_DATABASE_URL",
+        "WEEKEND_REPORT_AUTH_MODE",
+        "WEEKEND_REPORT_AUTH_PROVIDER",
+        "WEEKEND_REPORT_AUTH_TRUSTED_HEADER",
+        "WEEKEND_REPORT_AUTHORIZED_REVIEWERS",
+        "WEEKEND_REPORT_CSRF_SIGNING_KEY",
+        "WEEKEND_REPORT_CSRF_TTL_SECONDS",
+        "WEEKEND_REPORT_LOCAL_USERS_FILE",
+        "WEEKEND_REPORT_SESSION_SIGNING_KEY",
+        "WEEKEND_REPORT_SESSION_TTL_SECONDS",
+        "DATABASE_COLLECTION_MODE",
+    ],
+    "portainer.env": [
+        "SITE_COUNT",
+        "SITE1_ID",
+        "SITE1_DISPLAY_NAME",
+        "SITE1_PURPOSE",
+        "SITE2_ID",
+        "SITE2_DISPLAY_NAME",
+        "SITE2_PURPOSE",
+        "PORTAINER_COLLECTION_MODE",
+        "PORTAINER_API_CONTRACT",
+        "PORTAINER_AUTH_TYPE",
+        "PORTAINER_SITE1_URL",
+        "PORTAINER_SITE1_ENDPOINT_ID",
+        "PORTAINER_SITE1_TOKEN",
+        "PORTAINER_SITE1_TLS_VERIFY",
+        "PORTAINER_SITE2_URL",
+        "PORTAINER_SITE2_ENDPOINT_ID",
+        "PORTAINER_SITE2_TOKEN",
+        "PORTAINER_SITE2_TLS_VERIFY",
+    ],
+    "doctor.env": [
+        "DOCTOR_MODE",
+        "DOCTOR_SITE1_URL",
+        "DOCTOR_SITE2_URL",
+        "DOCTOR_API_SCHEMA",
+        "DOCTOR_EXPECTED_SERVICES",
+    ],
+    "rabbitmq.env": [
+        "RABBITMQ_COLLECTION_MODE",
+        "RABBITMQ_SITE1_URL",
+        "RABBITMQ_SITE1_USER",
+        "RABBITMQ_SITE1_PASSWORD",
+        "RABBITMQ_SITE1_TLS_VERIFY",
+        "RABBITMQ_SITE2_URL",
+        "RABBITMQ_SITE2_USER",
+        "RABBITMQ_SITE2_PASSWORD",
+        "RABBITMQ_SITE2_TLS_VERIFY",
+    ],
+    "recording.env": [
+        "RECORDING_COLLECTION_MODE",
+        "RECORDING_MANAGER_WEBAPP_URL",
+        "RECORDING_SITE1_WEBAPP_URL",
+        "RECORDING_SITE1_SERVER_REFERENCE",
+        "RECORDING_SITE2_WEBAPP_URL",
+        "RECORDING_SITE2_SERVER_REFERENCE",
+    ],
+    "infrastructure.env": [
+        "SSH_USERNAME",
+        "SSH_PRIVATE_KEY_PATH",
+        "SSH_KNOWN_HOSTS_PATH",
+        "CHRONY_TIMEZONE",
+        "CHRONY_SOURCE",
+        "SITE1_SERVER_COUNT",
+        "SITE1_SERVER_1_ID",
+        "SITE1_SERVER_1_HOST",
+        "SITE1_SERVER_1_PORT",
+        "SITE2_SERVER_COUNT",
+        "SITE2_SERVER_1_ID",
+        "SITE2_SERVER_1_HOST",
+        "SITE2_SERVER_1_PORT",
+    ],
+    "splunk.env": [
+        "SPLUNK_DASHBOARD_COUNT",
+        "SPLUNK_DASHBOARD_1_ID",
+        "SPLUNK_DASHBOARD_1_DISPLAY_NAME",
+        "SPLUNK_DASHBOARD_1_URL",
+        "SPLUNK_DASHBOARD_2_ID",
+        "SPLUNK_DASHBOARD_2_DISPLAY_NAME",
+        "SPLUNK_DASHBOARD_2_URL",
+        "SPLUNK_DASHBOARD_3_ID",
+        "SPLUNK_DASHBOARD_3_DISPLAY_NAME",
+        "SPLUNK_DASHBOARD_3_URL",
+        "SPLUNK_DASHBOARD_4_ID",
+        "SPLUNK_DASHBOARD_4_DISPLAY_NAME",
+        "SPLUNK_DASHBOARD_4_URL",
+    ],
+}
 
 
 def _run(command: list[str], *, env: dict[str, str] | None = None) -> None:
@@ -31,6 +138,7 @@ def _ci_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
     defaults = {
         "POSTGRES_PASSWORD": "ci-only-postgres-password",
+        "WEEKEND_REPORT_IMAGE": "weekend-report:ci-validation",
         "WEEKEND_REPORT_APP_VERSION": "ci",
         "WEEKEND_REPORT_BUILD_ID": "ci-local",
         "WEEKEND_REPORT_AUTH_MODE": "development",
@@ -49,16 +157,69 @@ def _ci_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
+def _compose_runtime_values() -> dict[str, str]:
+    values = valid_env()
+    values.update(
+        {
+            "POSTGRES_DB": "weekend_report_ci",
+            "POSTGRES_USER": "weekend_report",
+            "POSTGRES_PASSWORD": "ci-only-postgres-password",
+            "WEEKEND_REPORT_DATABASE_URL": (
+                "postgresql://weekend_report:"
+                "ci-only-postgres-password@postgres:5432/weekend_report_ci"
+            ),
+            "WEEKEND_REPORT_CONFIG_DIR": "/app/config",
+            "WEEKEND_REPORT_EVIDENCE_ROOT": "/app/runs",
+            "WEEKEND_REPORT_GIT_COMMIT": "<NOT_APPLICABLE>",
+            "WEEKEND_REPORT_LOCAL_USERS_FILE": "/app/secrets/local-users.json",
+            "WEEKEND_REPORT_SESSION_SIGNING_KEY": "ci-only-session-signing-key",
+            "WEEKEND_REPORT_SESSION_TTL_SECONDS": "14400",
+            "WEEKEND_REPORT_WORKER_POLL_SECONDS": "0.5",
+        }
+    )
+    return values
+
+
+@contextmanager
+def _temporary_compose_env_files():
+    DEPLOY_ENV_DIR.mkdir(parents=True, exist_ok=True)
+    values = _compose_runtime_values()
+    created: list[Path] = []
+    for filename, keys in COMPOSE_ENV_FILE_KEYS.items():
+        path = DEPLOY_ENV_DIR / filename
+        if path.exists():
+            continue
+        lines = [f"{key}={values.get(key, '')}" for key in keys]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        created.append(path)
+    try:
+        yield
+    finally:
+        for path in created:
+            path.unlink(missing_ok=True)
+
+
 def gate_config() -> None:
-    _run([sys.executable, "scripts/validate_config.py", "--config", "tests/fixtures/config_valid"])
+    complete_env = _ci_env(valid_env())
     _run(
         [
             sys.executable,
             "scripts/validate_config.py",
             "--config",
-            "config",
+            "deploy/docker/config",
+            "--no-production-preflight",
+        ],
+        env=complete_env,
+    )
+    _run(
+        [
+            sys.executable,
+            "scripts/validate_config.py",
+            "--config",
+            "deploy/docker/config",
             "--expect-invalid",
-        ]
+        ],
+        env=_ci_env(),
     )
 
 
@@ -123,8 +284,9 @@ def gate_audit() -> None:
 
 def gate_compose_config() -> None:
     env = _ci_env()
-    _run(["docker", "compose", "-f", str(COMPOSE_FILE), "config"], env=env)
-    _run(["docker", "compose", "-f", str(CI_COMPOSE_FILE), "config"], env=env)
+    with _temporary_compose_env_files():
+        _run(["docker", "compose", "-f", str(COMPOSE_FILE), "config"], env=env)
+        _run(["docker", "compose", "-f", str(CI_COMPOSE_FILE), "config"], env=env)
 
 
 def _free_local_port() -> int:

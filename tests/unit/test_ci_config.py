@@ -230,10 +230,12 @@ class CIConfigTests(unittest.TestCase):
             text,
         )
 
-    def test_ci_compose_uses_exact_image_and_fixture_config(self):
+    def test_ci_compose_uses_exact_image_and_read_only_rules_config(self):
         text = self.ci_compose.read_text(encoding="utf-8")
         self.assertIn("WEEKEND_REPORT_CI_IMAGE", text)
-        self.assertIn("/app/tests/fixtures/config_valid", text)
+        self.assertIn("WEEKEND_REPORT_CONFIG_DIR: /app/config", text)
+        self.assertIn("./config/rules.yml:/app/config/rules.yml:ro", text)
+        self.assertNotIn("/app/tests/fixtures/config_valid", text)
         self.assertNotIn("build:", text)
         self.assertIn("postgres:16-alpine", text)
 

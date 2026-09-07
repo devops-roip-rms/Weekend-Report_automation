@@ -7,7 +7,6 @@ from pathlib import Path
 
 from app.collectors.database import DatabaseCollector
 from app.collectors.infrastructure import normalize_chrony
-from app.config.loader import load_config_dir
 from app.database.repository import Repository
 from app.domain import CheckStatus
 from app.evidence.manager import EvidenceManager
@@ -15,6 +14,7 @@ from app.orchestrator.run_context import RunContext
 from app.validators.database import DatabaseValidator
 from app.validators.infrastructure import InfrastructureValidator
 from app.validators.portainer import PortainerValidator
+from tests.fixtures.config_factory import load_fixture_config
 
 
 class ValidatorTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class ValidatorTests(unittest.TestCase):
         )
 
     def test_portainer_parity_does_not_mask_failed_health(self):
-        config = load_config_dir("tests/fixtures/config_valid")
+        config = load_fixture_config()
         actual = copy.deepcopy(config["portainer_expected"]["fixture_actual"]["sites"])
         actual["site1"]["services"][0]["running_replicas"] = 2
         actual["site2"]["services"][0]["running_replicas"] = 2
@@ -44,7 +44,7 @@ class ValidatorTests(unittest.TestCase):
         self.assertEqual(replica_statuses, [CheckStatus.FAIL, CheckStatus.FAIL])
 
     def test_infrastructure_filesystem_threshold_and_chrony_unsynced(self):
-        config = load_config_dir("tests/fixtures/config_valid")
+        config = load_fixture_config()
         actual = copy.deepcopy(config["servers"]["fixture_actual"])
         actual["sites"]["site1"]["servers"]["srv1"]["df"] = (
             "Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 100G 75G 25G 75% /"
@@ -69,7 +69,7 @@ class ValidatorTests(unittest.TestCase):
         )
 
     def test_infrastructure_malformed_df_is_collection_error(self):
-        config = load_config_dir("tests/fixtures/config_valid")
+        config = load_fixture_config()
         actual = copy.deepcopy(config["servers"]["fixture_actual"])
         actual["sites"]["site1"]["servers"]["srv1"]["df"] = "not df output"
         results = InfrastructureValidator().validate(actual, config, self.context(config))
@@ -80,6 +80,23 @@ class ValidatorTests(unittest.TestCase):
         ][0]
         self.assertEqual(utilization.status, CheckStatus.ERROR)
         self.assertIn("could not be parsed", utilization.message)
+
+    def test_infrastructure_unreachable_server_is_error(self):
+        config = load_fixture_config()
+        actual = copy.deepcopy(config["servers"]["fixture_actual"])
+        server = actual["sites"]["site1"]["servers"]["srv1"]
+        server["reachable"] = False
+        server["df_error"] = "SSH connection failed"
+        results = InfrastructureValidator().validate(actual, config, self.context(config))
+        reachability = [
+            r
+            for r in results
+            if r.check_id == "infrastructure.ssh.reachable" and r.site == "site1"
+        ][0]
+        self.assertEqual(reachability.status, CheckStatus.ERROR)
+        self.assertEqual(reachability.actual["reachable"], False)
+        self.assertIn("SSH connection failed", reachability.actual["error"])
+        self.assertIn("unreachable", reachability.message)
 
     def test_chrony_parser_normalizes_tracking_and_sources(self):
         tracking = (
@@ -106,7 +123,7 @@ class ValidatorTests(unittest.TestCase):
         )
 
     def test_database_unverified_result_contract_is_error(self):
-        config = load_config_dir("tests/fixtures/config_valid")
+        config = load_fixture_config()
         actual = copy.deepcopy(config["database"]["fixture_actual"])
         results = DatabaseValidator().validate(
             actual,
@@ -123,7 +140,7 @@ class ValidatorTests(unittest.TestCase):
         )
 
     def test_database_live_adapter_is_blocked_until_script_contract_is_supplied(self):
-        config = load_config_dir("tests/fixtures/config_valid")
+        config = load_fixture_config()
         config["database"] = {
             "collection_mode": "live",
             "adapter": "existing_powershell_script",
