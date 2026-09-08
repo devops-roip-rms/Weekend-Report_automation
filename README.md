@@ -1,32 +1,25 @@
 # Weekend Report Automation
 
-**Documentation synchronized:** 2026-09-06
+Weekend Report Automation is a manually triggered operational-validation application built with Python 3.14, FastAPI, PostgreSQL, a persistent worker, filesystem evidence, HTML review, immutable review snapshots, and one final PDF generated only after explicit human confirmation.
 
-Weekend Report Automation is a manually triggered operational-validation application built with Python 3.14, FastAPI, a persistent worker, PostgreSQL, filesystem evidence storage, HTML review pages, immutable review snapshots, and one final PDF generated only after explicit human confirmation.
+The Docker image contains application code only. Runtime values are external ENV/secrets, and validation policy is supplied through the read-only `deploy/docker/config/rules.yml` file.
 
-The application is intentionally configuration-driven. The Docker image contains code only; deployment
-values come from external ENV files/secrets, and business validation policy comes from read-only
-`rules.yml`.
-
-## Current Operating Model
+## Operating Flow
 
 ```text
-Operator opens Weekend Report
-        |
-        v
 RUN WEEKEND REPORT
         |
         v
-Configuration preflight
+configuration preflight
         |
         v
-Database-backed execution lock
+database execution lock
         |
         v
 CREATED -> RUNNING
         |
         v
-Collectors + validators + evidence
+collectors + validators + evidence
         |
         v
 REVIEW_READY
@@ -38,50 +31,72 @@ HTML review + notes
 APPROVE / REJECT
         |
         v
-Immutable review snapshot
+immutable snapshot
         |
         v
-One final PDF
+one final PDF
 ```
 
-The Weekend Report itself is never scheduled by GitHub Actions or GitLab CI/CD.
+The operational Weekend Report is never scheduled by GitHub Actions or GitLab CI/CD.
 
-## Runtime Architecture
-
-- **web**: FastAPI UI/API for run creation, protected HTML review, notes, evidence, recovery resolution, and final confirmation.
-- **worker**: persistent Python process that atomically claims `CREATED` runs and executes the orchestrator.
-- **database**: PostgreSQL in deployment; SQLite is used by safe local fixture tests.
-- **evidence**: persistent run evidence under the configured evidence root.
-- **configuration**: read-only `rules.yml` policy plus runtime ENV/secrets supplied outside the image.
-- **reporting**: frozen snapshot first, then exactly one final PDF rendered from that snapshot.
-- **traceability**: `application_version`, `build_id`, deterministic `configuration_hash`, plus optional Git commit metadata when available.
-
-## Supported Python Version
-
-The current project and delivery pipeline are standardized on:
+## Repository Layout
 
 ```text
-Python 3.14
+app/                     application code
+  api/                   FastAPI route modules
+  collectors/            external-state collection boundaries
+  config/                configuration loading/schema/preflight
+  database/              repository + SQL migrations
+  evidence/              evidence paths/checksums/storage
+  executors/             approved execution boundaries
+  orchestrator/          run planning/execution/aggregation
+  reporting/             snapshot/HTML/PDF generation
+  review/                notes/finalization policy
+  validators/            module validation logic
+  web/                   FastAPI app, templates, static assets
+  worker/                persistent run worker
+
+deploy/docker/            production/CI Compose and runtime templates
+  config/rules.yml        single runtime policy source
+  env/*.env.example       module-specific ENV templates
+
+docs/                     architecture, configuration, deployment, CI/CD, recovery, validation
+scripts/                  CI, migration, configuration, deployment and database helpers
+tests/                    unit, integration, contract and fixture tests
+
+Dockerfile                final application image
+Dockerfile.runtime-base   online-built production dependency base
+Dockerfile.ci             online-built closed-network CI image
+requirements.txt          production Python dependencies
+requirements-dev.txt      development/online-CI tools + runtime dependencies
+TAG                       release version/trigger source
 ```
 
-Current validated Docker runtime:
+Generated transfer artifacts, Docker image TAR files, wheelhouses, runtime ENV files, secrets, caches, and `.git` metadata are not source-repository content.
+
+## Python and Dependency Model
+
+The project baseline is Python 3.14.
+
+Production runtime dependencies are pinned in:
 
 ```text
-python:3.14-slim-bookworm pinned by digest
-Python 3.14.7
+requirements.txt
 ```
 
-Local development should use a Python 3.14 virtual environment. The virtual environment itself is not part of the deployable project and must not be committed or transferred as runtime content.
+Development and online CI tooling is pinned in:
 
-## Local Quality Gates
+```text
+requirements-dev.txt
+```
 
-Install dependencies:
+Local development:
 
 ```powershell
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 ```
 
-Run the shared gates:
+Run the shared quality gates:
 
 ```powershell
 python scripts/ci.py config
@@ -95,210 +110,133 @@ python scripts/ci.py audit
 python scripts/ci.py compose-config
 ```
 
-The PostgreSQL concurrency gate requires a disposable PostgreSQL database:
+The PostgreSQL concurrency gate additionally requires a disposable PostgreSQL database. Never point it at production/shared data.
+
+## Docker Build Model
+
+There are three distinct images/roles.
+
+### 1. Runtime base
+
+`Dockerfile.runtime-base` is built on an Internet-connected machine. It contains Python 3.14, production Python dependencies, CA certificates, and `openssh-client`.
 
 ```powershell
-$env:WEEKEND_REPORT_TEST_POSTGRES_URL = "postgresql://USER:PASSWORD@HOST:PORT/weekend_report_test"
-$env:WEEKEND_REPORT_TEST_POSTGRES_DISPOSABLE = "1"
-python scripts/ci.py postgres
+docker build --pull `
+  -f Dockerfile.runtime-base `
+  -t weekend-report-runtime-base:python314 `
+  .
 ```
 
-Never point that gate at a production/shared database.
-
-The expected-invalid part of `python scripts/ci.py config` intentionally proves unresolved
-deployment ENV does not pass production preflight and finishes with:
+For the closed GitLab environment, transfer this image and publish/tag it as:
 
 ```text
-Configuration invalid as expected
+weekend-report-runtime-base:python314
 ```
 
-That is a PASS until production configuration is intentionally completed.
+### 2. Closed-network CI image
 
-## Docker
-
-Build:
+`Dockerfile.ci` is also built online, then transferred to the closed environment. It contains Python quality tooling plus Docker CLI/Compose.
 
 ```powershell
-docker build --no-cache -t weekend-report:python314 .
+docker build --pull `
+  -f Dockerfile.ci `
+  -t weekend-report-ci:python314 `
+  .
 ```
 
-Verify the runtime:
+The offline GitLab pipeline expects:
+
+```text
+weekend-report-ci:python314
+```
+
+Closed GitLab also expects the approved internal PostgreSQL image at `postgres-16-alpine`. GitHub-hosted CI uses public `postgres:16-alpine`.
+
+### 3. Final application image
+
+The final `Dockerfile` uses the prebuilt runtime base and copies only runtime application content.
+
+Connected/local example:
 
 ```powershell
-docker run --rm weekend-report:python314 python --version
+docker build `
+  --build-arg RUNTIME_BASE_IMAGE=weekend-report-runtime-base:python314 `
+  -t weekend-report:local `
+  .
 ```
 
-Smoke-test the exact built image:
+GitLab supplies the internal runtime-base image automatically from `.gitlab-ci-cd/image.yml`.
 
-```powershell
-python scripts/ci.py image-smoke --image weekend-report:python314
-```
+## CI/CD and Release
 
-The CI smoke definition is `deploy/docker/compose.ci.yml`. It contains no `build:` directive, so it tests the exact image supplied through `WEEKEND_REPORT_CI_IMAGE`.
+Normal source changes run quality gates only. They do not create a release image.
 
-The FastAPI container never mounts the Docker socket.
+The root `TAG` file is both the release version source and the release-image trigger. A `TAG` change on the default branch reruns all pre-image gates, builds the exact image, smoke-tests it, version-tags that same image, exports it with a SHA-256 checksum, and optionally publishes it.
 
-## CI/CD and Release Model
+A Git tag is not required.
 
-The project has one shared quality-gate contract (`scripts/ci.py`) and thin adapters for:
+See `docs/CI_CD.md` for the exact GitHub/GitLab flow, support-image preparation, baked dependency-audit evidence, and closed-network prerequisites.
+
+## Runtime Configuration
+
+Production Compose uses:
 
 ```text
-GitHub Actions
-GitLab CI/CD
+deploy/docker/compose.yml
++ deploy/docker/compose.proxy.yml   # reverse-proxy mode
+or
+deploy/docker/compose.direct.yml  # direct HTTPS mode
 ```
 
-### Normal source change
+Runtime values are copied from templates into non-committed files under:
 
 ```text
-source commit/push
-    |
-    v
-pre-image quality gates
-    |
-    +--> failure: STOP
-    |
-    `--> success: quality PASS only
-
-NO release image is created merely because normal source code changed.
+deploy/docker/.env
+deploy/docker/env/*.env
 ```
 
-### Release image trigger
+Secrets belong under `deploy/docker/secrets/` or another approved secret mechanism. Direct-mode TLS material belongs under `deploy/docker/tls/`.
 
-The authoritative release trigger and release version are stored in the root file:
-
-```text
-TAG
-```
-
-Example:
-
-```text
-v1.0.2
-```
-
-Changing `TAG` on the configured default branch triggers the image-delivery path.
-
-```text
-TAG changed
-    |
-    v
-pre-image quality gates run again
-    |
-    v
-all gates PASS
-    |
-    v
-build exact image
-    |
-    v
-smoke exact image
-    |
-    v
-tag same image as weekend-report:<TAG>
-    |
-    v
-export verified image + SHA-256
-    |
-    `--> optional registry publication
-```
-
-A Git tag is **not** required to trigger image creation.
-
-The `v` prefix is preserved everywhere:
-
-```text
-TAG:            v1.0.2
-image version:  v1.0.2
-registry tag:   :v1.0.
-archive:        weekend-report_v1.0.2_<short-sha>.tar.gz
-```
-
-The generated archive must load as:
-
-```text
-weekend-report:v1.0.2
-```
-
-Key delivery files:
-
-```text
-TAG
-.github/workflows/quality-gates.yml
-.github/workflows/build-image.yml
-.gitlab-ci.yml
-.gitlab-ci-cd/quality.yml
-.gitlab-ci-cd/image.yml
-deploy/docker/compose.ci.yml
-scripts/ci.py
-scripts/ci_e2e.py
-docs/CI_CD.md
-```
-
-GitHub Actions is usable now. GitLab CI/CD remains ready for later import/use on the target PC. Neither platform is a runtime dependency.
-
-## Configuration
-
-Secrets and deployment values belong in non-committed ENV files under `deploy/docker/env/`, Docker
-secrets, or another approved secret mechanism. Production Compose selects the already-built or loaded
-image with `WEEKEND_REPORT_IMAGE`; for a verified release it should point at a loaded versioned image
-such as `weekend-report:v1.0.2`.
-
-Policy remains in YAML:
+Policy remains in:
 
 ```text
 deploy/docker/config/rules.yml
 ```
 
-Deployment inventory, endpoints, and environment-specific targets are supplied through runtime ENV files.
-The application does not use per-module deployment YAML for those values.
+Do not put production credentials in source YAML, fixtures, documentation, Docker layers, or CI artifacts.
 
-Do not put credentials in YAML, fixtures, documentation, image layers, or CI artifacts.
+## Authentication
 
-Controlled placeholders:
+Production supports two approved identity boundaries:
 
-- `<TBD>`: required value not yet supplied.
-- `<TO_VERIFY>`: candidate value requiring verification.
-- `<NOT_APPLICABLE>`: intentionally not applicable only where schema permits it.
+- `trusted_header` behind a trusted reverse proxy that overwrites/removes client-supplied identity headers;
+- `local_login` using a non-committed `secrets/local-users.json` plus session signing key.
 
-Real runs must stay blocked while required production values are unresolved.
+Manage local-login users from the source/build machine with:
 
-## Live Integration Status
+```powershell
+python scripts/manage_local_user.py add <username>
+python scripts/manage_local_user.py list
+python scripts/manage_local_user.py remove <username>
+```
 
-The framework supports the following module boundaries, but real environment enablement remains controlled:
+## Current Live Integration Status
 
-- Portainer: read-only Docker Swarm service discovery, independent site health, and cross-site parity.
-- RabbitMQ: Management API topology/metrics validation.
-- Infrastructure: read-only SSH/command collection for root-filesystem usage and Chrony/NTP state.
-- Database: approved PowerShell adapter boundary; the production sync/check script is still empty and blocks live readiness.
-- DOCTOR: dynamic cross-site service validation is implemented, but the live API adapter is not implemented yet.
-- Splunk: human dashboard review.
-- Recording: existing-device workflow and recovery policy are implemented, but live collection/control remains intentionally blocked.
+- **Portainer:** live read-only Docker Swarm service discovery, independent site health, and cross-site parity implemented.
+- **RabbitMQ:** live Management API queue/node validation implemented.
+- **Infrastructure:** live read-only SSH collection for root filesystem and Chrony/NTP implemented.
+- **Splunk:** human dashboard review flow implemented.
+- **Database:** production PowerShell script adapter remains blocked while `scripts/database/database_sync_check.ps1` is empty/unverified.
+- **DOCTOR:** dynamic service validation exists, but the live API adapter is not implemented.
+- **Recording:** workflow/recovery semantics exist, but live collection/control remains intentionally blocked.
 
-Do not enable any live integration until the required environment values, expected state, authentication, evidence policy, and status semantics are approved.
+These are explicit readiness blockers, not hidden configuration defaults.
 
-## Review and Finalization
+## Documentation
 
-Production pages require authenticated/authorized access except health endpoints.
-
-Browser mutations use reviewer-bound signed CSRF tokens.
-
-Reviewer notes are additive and never rewrite machine findings.
-
-Final confirmation:
-
-1. validates readiness policy;
-2. freezes results, evidence references, notes, summaries, reviewer identity, decision, and traceability;
-3. writes `review_snapshot.json`;
-4. renders exactly one final PDF from that immutable snapshot;
-5. records the PDF path and checksum.
-
-See:
-
-- `docs/ARCHITECTURE.md`
-- `docs/CI_CD.md`
-- `docs/CONFIGURATION.md`
-- `docs/DEPLOYMENT.md`
-- `docs/RECOVERY_POLICY.md`
-- `docs/VALIDATION_CATALOG.md`
-
-
+- `docs/ARCHITECTURE.md` — runtime architecture and module boundaries
+- `docs/CONFIGURATION.md` — ENV, secrets, policy and helper scripts
+- `docs/DEPLOYMENT.md` — image preparation and runtime deployment
+- `docs/CI_CD.md` — GitHub/GitLab quality and image delivery
+- `docs/RECOVERY_POLICY.md` — stale-run and recording recovery behavior
+- `docs/VALIDATION_CATALOG.md` — validation checks/status semantics

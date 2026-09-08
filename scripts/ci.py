@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import argparse
 import os
-import socket
 import subprocess
 import sys
 import time
 import unittest
-import urllib.error
-import urllib.request
 from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
@@ -289,69 +286,185 @@ def gate_compose_config() -> None:
         _run(["docker", "compose", "-f", str(CI_COMPOSE_FILE), "config"], env=env)
 
 
-def _free_local_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
-
-
-def _wait_for_health(port: int, *, timeout_seconds: int = 90) -> None:
+def _wait_for_health(
+    compose: list[str],
+    env: dict[str, str],
+    *,
+    timeout_seconds: int = 90,
+) -> None:
     deadline = time.monotonic() + timeout_seconds
-    url = f"http://127.0.0.1:{port}/healthz"
     last_error = "health endpoint was not contacted"
+
+    health_command = [
+        *compose,
+        "exec",
+        "-T",
+        "web",
+        "python",
+        "-c",
+        (
+            "import urllib.request; "
+            "r=urllib.request.urlopen("
+            "'http://127.0.0.1:8080/healthz', timeout=3"
+            "); "
+            "body=r.read().decode('utf-8', errors='replace'); "
+            "assert r.status == 200, body; "
+            "assert '\"status\":\"ok\"' in body.replace(' ', ''), body; "
+            "print(body)"
+        ),
+    ]
+
     while time.monotonic() < deadline:
-        try:
-            # The target is always a loopback CI endpoint created by this script.
-            with urllib.request.urlopen(url, timeout=3) as response:
-                body = response.read().decode("utf-8", errors="replace")
-                if response.status == 200 and '"status":"ok"' in body.replace(" ", ""):
-                    print(f"health check passed: {body}")
-                    return
-                last_error = f"HTTP {response.status}: {body}"
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
-            last_error = str(exc)
+        completed = subprocess.run(
+            health_command,
+            cwd=ROOT,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        if completed.returncode == 0:
+            print(
+                f"health check passed: {completed.stdout.strip()}",
+                flush=True,
+            )
+            return
+
+        last_error = (
+            completed.stderr.strip()
+            or completed.stdout.strip()
+            or f"exit code {completed.returncode}"
+        )
+
         time.sleep(2)
+
     raise RuntimeError(f"built-image health check failed: {last_error}")
 
 
 def gate_image_smoke(image: str) -> None:
     if not image.strip():
         raise SystemExit("--image is required for image-smoke")
-    port = _free_local_port()
+
     project = f"weekend-report-ci-{os.getpid()}"
+
     env = _ci_env(
         {
             "WEEKEND_REPORT_CI_IMAGE": image,
-            "WEEKEND_REPORT_CI_PORT": str(port),
-            "WEEKEND_REPORT_APP_VERSION": os.getenv("WEEKEND_REPORT_APP_VERSION", "ci-image"),
-            "WEEKEND_REPORT_BUILD_ID": os.getenv("WEEKEND_REPORT_BUILD_ID", project),
+            "WEEKEND_REPORT_APP_VERSION": os.getenv(
+                "WEEKEND_REPORT_APP_VERSION",
+                "ci-image",
+            ),
+            "WEEKEND_REPORT_BUILD_ID": os.getenv(
+                "WEEKEND_REPORT_BUILD_ID",
+                project,
+            ),
         }
     )
-    compose = ["docker", "compose", "-p", project, "-f", str(CI_COMPOSE_FILE)]
+
+    compose = [
+        "docker",
+        "compose",
+        "-p",
+        project,
+        "-f",
+        str(CI_COMPOSE_FILE),
+    ]
+
     try:
+        _run([*compose, "create"], env=env)
+
+        _run(
+            [
+                *compose,
+                "cp",
+                "deploy/docker/config/rules.yml",
+                "web:/app/config/rules.yml",
+            ],
+            env=env,
+        )
+
+        _run(
+            [
+                *compose,
+                "cp",
+                "deploy/docker/config/rules.yml",
+                "worker:/app/config/rules.yml",
+            ],
+            env=env,
+        )
+
         _run([*compose, "up", "-d"], env=env)
-        _wait_for_health(port)
-        _run([*compose, "exec", "-T", "web", "python", "scripts/migrate.py"], env=env)
+
+        _wait_for_health(
+            compose,
+            env,
+        )
+
+        _run(
+            [
+                *compose,
+                "exec",
+                "-T",
+                "web",
+                "python",
+                "scripts/migrate.py",
+            ],
+            env=env,
+        )
+
         completed = subprocess.run(
-            [*compose, "ps", "--services", "--status", "running"],
+            [
+                *compose,
+                "ps",
+                "--services",
+                "--status",
+                "running",
+            ],
             cwd=ROOT,
             env=env,
             check=True,
             capture_output=True,
             text=True,
         )
-        running = {line.strip() for line in completed.stdout.splitlines() if line.strip()}
+
+        running = {
+            line.strip()
+            for line in completed.stdout.splitlines()
+            if line.strip()
+        }
+
         expected = {"postgres", "web", "worker"}
         missing = expected - running
+
         if missing:
-            raise RuntimeError(f"built-image smoke missing running services: {sorted(missing)}")
-        print(f"built-image smoke passed for {image}; services={sorted(running)}")
+            raise RuntimeError(
+                f"built-image smoke missing running services: "
+                f"{sorted(missing)}"
+            )
+
+        print(
+            f"built-image smoke passed for {image}; "
+            f"services={sorted(running)}"
+        )
+
     except Exception:
-        subprocess.run([*compose, "logs", "--no-color"], cwd=ROOT, env=env, check=False)
+        subprocess.run(
+            [*compose, "logs", "--no-color"],
+            cwd=ROOT,
+            env=env,
+            check=False,
+        )
         raise
+
     finally:
         subprocess.run(
-            [*compose, "down", "-v", "--remove-orphans"],
+            [
+                *compose,
+                "down",
+                "-v",
+                "--remove-orphans",
+            ],
             cwd=ROOT,
             env=env,
             check=False,

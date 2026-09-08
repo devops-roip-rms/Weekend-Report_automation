@@ -1,5 +1,5 @@
 image-build-smoke-export:
-  image: cr.io:5000/docker:27-cli
+  image: weekend-report-ci:python314
   stage: image
 
   needs:
@@ -11,10 +11,14 @@ image-build-smoke-export:
     - contract-tests
     - postgres-concurrency
     - safe-e2e
+    - dependency-audit
     - docker-compose-validate
 
+  variables:
+    WEEKEND_REPORT_RUNTIME_BASE_IMAGE: weekend-report-runtime-base:python314
+    WEEKEND_REPORT_CI_POSTGRES_IMAGE: postgres-16-alpine
+
   before_script:
-    - apk add --no-cache python gzip coreutils
     - sh .gitlab-ci-cd/scripts/wait-for-docker.sh
 
   script:

@@ -40,6 +40,7 @@ class CIConfigTests(unittest.TestCase):
             "contract-tests:",
             "postgres-concurrency:",
             "safe-e2e:",
+            "dependency-audit:",
             "docker-compose-validate:",
         ):
             self.assertIn(gate, text)
@@ -90,6 +91,53 @@ class CIConfigTests(unittest.TestCase):
         self.assertIn("docker save", export_script)
         self.assertNotIn("continue-on-error", text)
 
+
+    def test_support_image_contracts_are_explicit(self):
+        github_image = self.github_image.read_text(encoding="utf-8")
+        gitlab_quality = self.gitlab_quality.read_text(encoding="utf-8")
+        gitlab_image = self.gitlab_image.read_text(encoding="utf-8")
+        gitlab_main_script = (
+            self.gitlab_scripts / "image-build-smoke-export.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("Dockerfile.runtime-base", github_image)
+        self.assertIn(
+            "--build-arg RUNTIME_BASE_IMAGE=weekend-report-runtime-base:python314",
+            github_image,
+        )
+        self.assertIn("weekend-report-ci:python314", gitlab_quality)
+        self.assertIn("weekend-report-ci:python314", gitlab_image)
+        self.assertIn(
+            "weekend-report-runtime-base:python314",
+            gitlab_image,
+        )
+        self.assertIn("postgres-16-alpine", gitlab_quality)
+        self.assertIn("postgres-16-alpine", gitlab_image)
+        self.assertIn("--build-arg", gitlab_main_script)
+        self.assertNotIn("apk add", gitlab_image)
+
+    def test_gitlab_dependency_audit_uses_baked_online_evidence(self):
+        quality = self.gitlab_quality.read_text(encoding="utf-8")
+        verify_script = self.gitlab_scripts / "verify-ci-image-audit.sh"
+        dockerfile_ci = Path("Dockerfile.ci").read_text(encoding="utf-8")
+
+        self.assertIn("dependency-audit:", quality)
+        self.assertIn("verify-ci-image-audit.sh", quality)
+        self.assertTrue(verify_script.is_file(), verify_script)
+        verify_text = verify_script.read_text(encoding="utf-8")
+        self.assertIn("requirements.sha256", verify_text)
+        self.assertIn("requirements-dev.sha256", verify_text)
+        self.assertIn("pip-audit.json", verify_text)
+        self.assertIn("requirements.sha256", dockerfile_ci)
+        self.assertIn("requirements-dev.sha256", dockerfile_ci)
+        self.assertIn("pip_audit", dockerfile_ci)
+
+    def test_gitlab_shell_scripts_are_posix_sh_compatible(self):
+        for path in self.gitlab_scripts.glob("*.sh"):
+            text = path.read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("#!/bin/sh"), path)
+            self.assertNotIn("set -o pipefail", text, path)
+
     def test_gitlab_image_needs_all_quality_jobs(self):
         text = self.gitlab_image.read_text(encoding="utf-8")
         for gate in (
@@ -101,6 +149,7 @@ class CIConfigTests(unittest.TestCase):
             "contract-tests",
             "postgres-concurrency",
             "safe-e2e",
+            "dependency-audit",
             "docker-compose-validate",
         ):
             self.assertIn(f"- {gate}", text)
@@ -230,14 +279,36 @@ class CIConfigTests(unittest.TestCase):
             text,
         )
 
-    def test_ci_compose_uses_exact_image_and_read_only_rules_config(self):
-        text = self.ci_compose.read_text(encoding="utf-8")
-        self.assertIn("WEEKEND_REPORT_CI_IMAGE", text)
-        self.assertIn("WEEKEND_REPORT_CONFIG_DIR: /app/config", text)
-        self.assertIn("./config/rules.yml:/app/config/rules.yml:ro", text)
-        self.assertNotIn("/app/tests/fixtures/config_valid", text)
-        self.assertNotIn("build:", text)
-        self.assertIn("postgres:16-alpine", text)
+    def test_ci_compose_uses_exact_image_and_external_rules_config(self):
+        compose = Path("deploy/docker/compose.ci.yml").read_text(encoding="utf-8")
+        ci_script = Path("scripts/ci.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "image: ${WEEKEND_REPORT_CI_IMAGE:?Exact CI image tag is required}",
+            compose,
+        )
+        self.assertIn(
+            "image: ${WEEKEND_REPORT_CI_POSTGRES_IMAGE:-postgres:16-alpine}",
+            compose,
+        )
+        # CI must not bind-mount rules.yml because the GitLab Docker daemon
+        # does not share the job container filesystem.
+        self.assertNotIn(
+            "./config/rules.yml:/app/config/rules.yml:ro",
+            compose,
+        )
+        # The external rules file must instead be copied into both CI containers.
+        self.assertIn(
+            '"deploy/docker/config/rules.yml"',
+            ci_script,
+        )
+        self.assertIn(
+            '"web:/app/config/rules.yml"',
+            ci_script,
+        )
+        self.assertIn(
+            '"worker:/app/config/rules.yml"',
+            ci_script,
+        )
 
     def test_ci_files_do_not_contain_production_integration_secrets(self):
         combined = "\n".join(

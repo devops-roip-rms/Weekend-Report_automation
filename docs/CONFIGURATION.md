@@ -188,6 +188,16 @@ The local users file belongs under:
 deploy/docker/secrets/local-users.json
 ```
 
+Create/manage that non-committed file from the source/build machine with:
+
+```powershell
+python scripts/manage_local_user.py add <username>
+python scripts/manage_local_user.py list
+python scripts/manage_local_user.py remove <username>
+```
+
+The helper stores password hashes only. The configured username must also appear in `WEEKEND_REPORT_AUTHORIZED_REVIEWERS`.
+
 ## 7. Secrets and File Mounts
 
 The base Compose file mounts:

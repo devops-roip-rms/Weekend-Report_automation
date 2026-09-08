@@ -1,6 +1,5 @@
 #!/bin/sh
 set -e
-set -o pipefail
 
 RELEASE_IMAGE_TAG="$1"
 SHORT_SHA="$2"
@@ -12,7 +11,7 @@ if [ "${WEEKEND_REPORT_PUBLISH_IMAGE:-0}" = "1" ]; then
     exit 1
   }
 
-  echo "$CI_REGISTRY_PASSWORD" |
+  printf '%s\n' "$CI_REGISTRY_PASSWORD" |
     docker login "$CI_REGISTRY" \
       -u "$CI_REGISTRY_USER" \
       --password-stdin

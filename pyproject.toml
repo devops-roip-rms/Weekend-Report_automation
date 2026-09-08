@@ -10,7 +10,3 @@ python_version = "3.14"
 ignore_missing_imports = true
 warn_unused_ignores = true
 strict_optional = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]

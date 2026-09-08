@@ -1,6 +1,6 @@
 # Validation Catalog
 
-**Documentation synchronized:** 2026-09-06
+**Documentation synchronized:** 2026-09-07
 
 Controlled placeholders (`<TBD>`, `<TO_VERIFY>`) are not production-ready.
 
@@ -680,9 +680,10 @@ FAIL:
 Verified artifact contains:
 
 ```text
-weekend-report_<TAG-version>_<short-sha>.tar.gz
-weekend-report_<TAG-version>_<short-sha>.tar.gz.sha256
+weekend-report_<TAG-version>.tar.gz
+weekend-report_<TAG-version>.tar.gz.sha256
 image-id.txt
+release-image-id.txt
 ```
 
 The SHA-256 must be verified after offline transfer before loading/deployment.

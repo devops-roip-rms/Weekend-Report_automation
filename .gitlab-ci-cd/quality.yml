@@ -1,5 +1,7 @@
 .python_gate:
   image: weekend-report-ci:python314
+  variables:
+    WEEKEND_REPORT_CI_POSTGRES_IMAGE: postgres-16-alpine
 
 config-validation:
   extends: .python_gate
@@ -47,7 +49,7 @@ postgres-concurrency:
   stage: quality
   needs: [config-validation]
   services:
-    - name: postgres:16-alpine
+    - name: postgres-16-alpine
       alias: postgres
   variables:
     POSTGRES_DB: weekend_report_ci_test
@@ -55,6 +57,7 @@ postgres-concurrency:
     POSTGRES_PASSWORD: ci-only-postgres-password
     WEEKEND_REPORT_TEST_POSTGRES_URL: postgresql://weekend_report_ci:ci-only-postgres-password@postgres:5432/weekend_report_ci_test
     WEEKEND_REPORT_TEST_POSTGRES_DISPOSABLE: "1"
+    WEEKEND_REPORT_CI_POSTGRES_IMAGE: postgres-16-alpine
   script:
     - python scripts/ci.py postgres
 
@@ -65,8 +68,15 @@ safe-e2e:
   script:
     - python scripts/ci.py e2e
 
+dependency-audit:
+  extends: .python_gate
+  stage: quality
+  needs: [config-validation]
+  script:
+    - sh .gitlab-ci-cd/scripts/verify-ci-image-audit.sh
+
 docker-compose-validate:
-  image: weekend-report-ci:python314
+  extends: .python_gate
   stage: quality
   needs: [config-validation]
   script:

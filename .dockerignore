@@ -1,35 +1,46 @@
+# Repository / CI metadata
 .git
-__pycache__
-*.pyc
-.env
-.env.*
-config/
-runs/
-data/
-deploy/docker/.env
-deploy/docker/env/*.env
-deploy/docker/env/*.env.example
-deploy/docker/config/
-deploy/docker/secrets/
-deploy/docker/tls/
-runs/
-data/
+.github/
+.gitlab-ci-cd/
+.gitlab-ci.yml
+
+# Python / tooling caches
+__pycache__/
+*.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
 coverage/
 htmlcov/
-.coverage
+
+# Local environment / editor state
+.env
+.env.*
+.venv/
 .idea/
 .vscode/
+
+# Runtime/deployment configuration is external to the application image.
+deploy/
+runs/
+data/
 work/
 
+# Generated build / transfer artifacts
 dist/
-.github/
-.gitlab/
-.gitlab-ci.yml
+runtime-bundle/
+wheelhouse/
+weekend-report-runtime-base-*.tar
+weekend-report-runtime-base-*.tar.gz
+weekend-report-ci-*.tar
+weekend-report-ci-*.tar.gz
+weekend-report-runtime_*.tar
+weekend-report-runtime_*.tar.gz
+image-id.txt
+release-image-id.txt
 
-# Runtime-only authentication / TLS material
+# Never send private key/certificate material into a Docker build context.
 *.key
 *.pem
 *.crt

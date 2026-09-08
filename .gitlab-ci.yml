@@ -7,10 +7,6 @@ stages:
   - quality
   - image
 
-variables:
-  PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
