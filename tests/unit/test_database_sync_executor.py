@@ -1,15 +1,17 @@
 import json
+import subprocess
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+
 from app.executors.database_sync_test import (
     DatabaseSyncExecutionError,
     DatabaseSyncResultError,
     parse_database_script_result,
     run_database_sync_test,
 )
-import subprocess
-from types import SimpleNamespace
-from unittest.mock import patch
 from tests.fixtures.config_factory import load_valid_config
+
 
 def _site(
     name: str,
@@ -328,33 +330,6 @@ class DatabaseSyncExecutorContractTests(unittest.TestCase):
       self.assertEqual(
           ctx.exception.code,
           "DATABASE_SYNC_POWERSHELL_UNAVAILABLE",
-      )
-    def test_run_timeout_marks_cleanup_unproven(self):
-      config = load_valid_config()
-      with patch(
-          "app.executors.database_sync_test.shutil.which",
-          return_value="/usr/bin/pwsh",
-      ), patch(
-          "app.executors.database_sync_test.subprocess.run",
-          side_effect=subprocess.TimeoutExpired(
-              cmd=["pwsh"],
-              timeout=300,
-          ),
-      ):
-          with self.assertRaises(
-              DatabaseSyncExecutionError
-          ) as ctx:
-              run_database_sync_test(
-                  config["database"],
-                  config,
-              )
-      self.assertEqual(
-          ctx.exception.code,
-          "DATABASE_SYNC_SCRIPT_TIMEOUT_CLEANUP_UNPROVEN",
-      )
-      self.assertEqual(
-          ctx.exception.metadata["cleanup"],
-          "UNPROVEN",
       )
     def test_run_timeout_marks_cleanup_unproven(self):
       config = load_valid_config()

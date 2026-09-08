@@ -207,7 +207,7 @@ def run_database_sync_test(
 
     if (
         isinstance(timeout_value, bool)
-        or not isinstance(timeout_value, (int, float))
+        or not isinstance(timeout_value, int | float)
         or timeout_value <= 0
     ):
         raise DatabaseSyncExecutionError(

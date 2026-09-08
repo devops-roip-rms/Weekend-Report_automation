@@ -4,6 +4,7 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.collectors.database import DatabaseCollector
 from app.collectors.infrastructure import normalize_chrony
@@ -18,7 +19,6 @@ from tests.fixtures.config_factory import (
     load_fixture_config,
     load_valid_config,
 )
-from unittest.mock import patch
 
 
 class ValidatorTests(unittest.TestCase):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -284,6 +285,37 @@ def gate_compose_config() -> None:
     with _temporary_compose_env_files():
         _run(["docker", "compose", "-f", str(COMPOSE_FILE), "config"], env=env)
         _run(["docker", "compose", "-f", str(CI_COMPOSE_FILE), "config"], env=env)
+
+    env_dir = ROOT / "deploy" / "docker" / "env"
+    created_env_files: list[Path] = []
+
+    try:
+        for example_path in sorted(env_dir.glob("*.env.example")):
+            runtime_path = example_path.with_suffix("")
+
+            if runtime_path.exists():
+                continue
+
+            shutil.copyfile(
+                example_path,
+                runtime_path,
+            )
+            created_env_files.append(runtime_path)
+
+        _run(
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(COMPOSE_FILE),
+                "config",
+            ],
+            env=env,
+        )
+
+    finally:
+        for runtime_path in created_env_files:
+            runtime_path.unlink(missing_ok=True)
 
 
 def _wait_for_health(
