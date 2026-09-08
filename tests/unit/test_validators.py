@@ -14,7 +14,11 @@ from app.orchestrator.run_context import RunContext
 from app.validators.database import DatabaseValidator
 from app.validators.infrastructure import InfrastructureValidator
 from app.validators.portainer import PortainerValidator
-from tests.fixtures.config_factory import load_fixture_config
+from tests.fixtures.config_factory import (
+    load_fixture_config,
+    load_valid_config,
+)
+from unittest.mock import patch
 
 
 class ValidatorTests(unittest.TestCase):
@@ -140,15 +144,18 @@ class ValidatorTests(unittest.TestCase):
         )
 
     def test_database_live_adapter_is_blocked_until_script_contract_is_supplied(self):
-        config = load_fixture_config()
-        config["database"] = {
-            "collection_mode": "live",
-            "adapter": "existing_powershell_script",
-            "script": {"path": "scripts/database/database_sync_check.ps1"},
-        }
-        config["_config_dir"] = str(Path.cwd() / "config")
-        actual = DatabaseCollector().collect(self.context(config))
-        self.assertEqual(actual["errors"][0]["code"], "DATABASE_SYNC_SCRIPT_CONTRACT_UNAVAILABLE")
+        config = load_valid_config()
+        with patch(
+            "app.executors.database_sync_test.shutil.which",
+            return_value=None,
+        ):
+            actual = DatabaseCollector().collect(
+                self.context(config)
+            )
+        self.assertEqual(
+            actual["errors"][0]["code"],
+            "DATABASE_SYNC_POWERSHELL_UNAVAILABLE",
+        )
 
 
 if __name__ == "__main__":

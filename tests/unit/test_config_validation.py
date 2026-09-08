@@ -188,6 +188,118 @@ class ConfigValidationTests(unittest.TestCase):
             config_hash("config", effective_config=config),
             config_hash("config", effective_config=policy_changed),
         )
+    def test_database_pairs_are_parsed_from_numbered_env(self):
+        config = load_valid_config()
+        database = config["database"]
+        self.assertEqual(database["collection_mode"], "live")
+        self.assertEqual(
+            database["credentials"]["username"],
+            "fixture-db-user",
+        )
+        self.assertEqual(
+            database["credentials"]["password_file"],
+            "/app/secrets/database_sync_password",
+        )
+        pairs = database["pairs"]
+        self.assertEqual(len(pairs), 3)
+        self.assertEqual(
+            pairs[0],
+            {
+                "name": "database1",
+                "site1_host": "192.0.2.11",
+                "site2_host": "192.0.2.21",
+                "port": 3306,
+            },
+        )
+        self.assertEqual(pairs[1]["name"], "database2")
+        self.assertEqual(pairs[1]["site1_host"], "192.0.2.12")
+        self.assertEqual(pairs[1]["site2_host"], "192.0.2.22")
+        self.assertEqual(pairs[2]["name"], "database3")
+        self.assertEqual(pairs[2]["site1_host"], "192.0.2.13")
+        self.assertEqual(pairs[2]["site2_host"], "192.0.2.23")
+    def test_database_pair_count_must_be_integer(self):
+        env = valid_env()
+        env["DATABASE_PAIR_COUNT"] = "three"
+        with self.assertRaises(ConfigError):
+            load_config_dir(
+                "deploy/docker/config",
+                env=env,
+            )
+    def test_database_live_configuration_accepts_three_valid_pairs(self):
+        config = load_valid_config()
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        database_errors = [
+            issue
+            for issue in report.errors
+            if issue.path.startswith("database.")
+        ]
+        self.assertEqual(database_errors, [])
+    def test_database_requires_exactly_three_pairs(self):
+        config = load_valid_config()
+        config["database"]["pairs"] = config["database"]["pairs"][:2]
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertTrue(
+            any(
+                issue.path == "database.pairs"
+                and "exactly 3" in issue.message
+                for issue in report.errors
+            )
+        )
+    def test_database_hosts_must_be_unique_across_pairs(self):
+        config = load_valid_config()
+        config["database"]["pairs"][1]["site1_host"] = (
+            config["database"]["pairs"][0]["site1_host"]
+        )
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertTrue(
+            any(
+                issue.path == "database.pairs[1].site1_host"
+                and "unique" in issue.message
+                for issue in report.errors
+            )
+        )
+    def test_database_hosts_must_be_valid_ip_addresses(self):
+        config = load_valid_config()
+        config["database"]["pairs"][0]["site2_host"] = "not-an-ip"
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertTrue(
+            any(
+                issue.path == "database.pairs[0].site2_host"
+                and "IPv4 or IPv6" in issue.message
+                for issue in report.errors
+            )
+        )
+    def test_database_credentials_require_safe_secret_file(self):
+        config = load_valid_config()
+        config["database"]["credentials"]["username"] = ""
+        config["database"]["credentials"]["password_file"] = (
+            "/tmp/database-password"
+        )
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        paths = {issue.path for issue in report.errors}
+        self.assertIn(
+            "database.credentials.username",
+            paths,
+        )
+        self.assertIn(
+            "database.credentials.password_file",
+            paths,
+        )
 
 
 if __name__ == "__main__":

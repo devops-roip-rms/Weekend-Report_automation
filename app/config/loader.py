@@ -23,6 +23,7 @@ ENV_FILE_ORDER = [
     "rabbitmq.env",
     "recording.env",
     "infrastructure.env",
+    "database.env",
     "splunk.env",
 ]
 
@@ -363,11 +364,70 @@ def _load_servers(
 
 def _load_database(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any]:
     policy = _mapping_at(rules, "database")
+
+    pair_count = _env_int(
+        env,
+        "DATABASE_PAIR_COUNT",
+        default=0,
+        min_value=0,
+    )
+
+    pairs: list[dict[str, Any]] = []
+
+    for idx in range(1, pair_count + 1):
+        prefix = f"DATABASE_PAIR_{idx}"
+
+        pairs.append(
+            {
+                "name": _env_string(
+                    env,
+                    f"{prefix}_NAME",
+                    f"database{idx}",
+                ),
+                "site1_host": _env_string(
+                    env,
+                    f"{prefix}_SITE1_HOST",
+                ),
+                "site2_host": _env_string(
+                    env,
+                    f"{prefix}_SITE2_HOST",
+                ),
+                "port": _env_int(
+                    env,
+                    f"{prefix}_PORT",
+                    default=3306,
+                    min_value=1,
+                ),
+            }
+        )
+
     return {
-        "collection_mode": _env_string(env, "DATABASE_COLLECTION_MODE", "live"),
-        "adapter": policy.get("adapter", "existing_powershell_script"),
-        "script": copy.deepcopy(policy.get("script", {})),
-        "algorithm": copy.deepcopy(policy.get("algorithm", {})),
+        "collection_mode": _env_string(
+            env,
+            "DATABASE_COLLECTION_MODE",
+            "live",
+        ),
+        "credentials": {
+            "username": _env_string(
+                env,
+                "DATABASE_USERNAME",
+            ),
+            "password_file": _env_string(
+                env,
+                "DATABASE_PASSWORD_FILE",
+            ),
+        },
+        "pairs": pairs,
+        "adapter": policy.get(
+            "adapter",
+            "existing_powershell_script",
+        ),
+        "script": copy.deepcopy(
+            policy.get("script", {})
+        ),
+        "algorithm": copy.deepcopy(
+            policy.get("algorithm", {})
+        ),
     }
 
 

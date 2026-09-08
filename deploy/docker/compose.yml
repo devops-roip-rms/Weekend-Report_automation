@@ -5,6 +5,7 @@ x-weekend-env-files: &weekend_env_files
   - ./env/rabbitmq.env
   - ./env/recording.env
   - ./env/infrastructure.env
+  - ./env/database.env
   - ./env/splunk.env
 
 x-app-volumes: &app_volumes

@@ -1,24 +1,92 @@
-# Production runtime dependency image.
-# Build this image on an Internet-connected machine, then transfer/tag/push it
-# into the closed registry used by GitLab.
-FROM python:3.14-slim-bookworm
+FROM python:3.14.7-slim-trixie
+
+ARG POWERSHELL_VERSION=7.6.5
+ARG SIMPLYSQL_VERSION=2.2.0.106
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        openssh-client \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
+#
+# Runtime OS dependencies + pinned PowerShell.
+#
+# This support image is intentionally built on an Internet-connected
+# machine and later transferred to the closed GitLab environment.
+#
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        openssh-client; \
+    test "$(dpkg --print-architecture)" = "amd64"; \
+    curl -fsSL \
+        -o /tmp/powershell.deb \
+        "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell_${POWERSHELL_VERSION}-1.deb_amd64.deb"; \
+    apt-get install -y --no-install-recommends /tmp/powershell.deb; \
+    rm -f /tmp/powershell.deb; \
+    rm -rf /var/lib/apt/lists/*
+
+#
+# Python production dependencies only.
+#
 COPY requirements.txt /tmp/requirements.txt
 
-RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt \
+RUN python -m pip install \
+        --no-cache-dir \
+        -r /tmp/requirements.txt \
     && python -m pip check \
-    && rm /tmp/requirements.txt
+    && rm -f /tmp/requirements.txt
 
-RUN python -c "import fastapi, starlette, uvicorn, jinja2, httpx, yaml, psycopg" \
-    && ssh -V
+#
+# Install the exact PowerShell database module required by
+# database_sync_check.ps1.
+#
+# AllUsers places the module in the shared PowerShell module path, so
+# the final image can import it while running as the non-root
+# "weekend" user.
+#
+RUN pwsh \
+        -NoLogo \
+        -NoProfile \
+        -NonInteractive \
+        -Command "\
+            \$ErrorActionPreference = 'Stop'; \
+            Get-Command Install-PSResource -ErrorAction Stop | Out-Null; \
+            Install-PSResource \
+                -Name SimplySql \
+                -Version '${SIMPLYSQL_VERSION}' \
+                -Scope AllUsers \
+                -TrustRepository \
+                -AcceptLicense; \
+        "
+
+#
+# Build-time verification.
+#
+RUN python -c "import fastapi, starlette, uvicorn, jinja2, httpx, yaml, psycopg; print('Python runtime imports: PASS')"
+
+RUN ssh -V
+
+RUN pwsh \
+        -NoLogo \
+        -NoProfile \
+        -NonInteractive \
+        -Command "\
+            \$ErrorActionPreference = 'Stop'; \
+            if (\$PSVersionTable.PSVersion.ToString() -ne '${POWERSHELL_VERSION}') { \
+                throw \"Unexpected PowerShell version: \$([string]\$PSVersionTable.PSVersion)\"; \
+            }; \
+            Import-Module SimplySql -RequiredVersion '${SIMPLYSQL_VERSION}' -Force; \
+            \$module = Get-Module SimplySql; \
+            if (\$module.Version.ToString() -ne '${SIMPLYSQL_VERSION}') { \
+                throw \"Unexpected SimplySql version: \$([string]\$module.Version)\"; \
+            }; \
+            Get-Command Open-MySqlConnection -ErrorAction Stop | Out-Null; \
+            Get-Command Invoke-SqlQuery -ErrorAction Stop | Out-Null; \
+            Get-Command Close-SqlConnection -ErrorAction Stop | Out-Null; \
+            Write-Host 'PowerShell database runtime: PASS'; \
+        "

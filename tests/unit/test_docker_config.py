@@ -14,11 +14,19 @@ class DockerConfigTests(unittest.TestCase):
         self.assertNotIn("wheelhouse", dockerfile)
 
     def test_runtime_base_uses_python314_and_runtime_requirements(self):
-        dockerfile = Path("Dockerfile.runtime-base").read_text(encoding="utf-8")
-        self.assertIn("FROM python:3.14-slim-bookworm", dockerfile)
-        self.assertIn("COPY requirements.txt", dockerfile)
-        self.assertIn("openssh-client", dockerfile)
-        self.assertNotIn("requirements-dev.txt", dockerfile)
+        root = Path(__file__).resolve().parents[2]
+        text = (root / "Dockerfile.runtime-base").read_text(encoding="utf-8")
+        self.assertIn("FROM python:3.14.7-slim-trixie",text,)
+        self.assertIn("COPY requirements.txt",text,)
+        self.assertIn("openssh-client",text,)
+        self.assertNotIn("requirements-dev.txt",text,)
+        self.assertIn("ARG POWERSHELL_VERSION=7.6.5",text,)
+        self.assertIn("ARG SIMPLYSQL_VERSION=2.2.0.106",text,)
+        self.assertIn("Install-PSResource",text,)
+        self.assertIn("SimplySql",text,)
+        self.assertIn("Open-MySqlConnection",text,)
+        self.assertIn("Invoke-SqlQuery",text,)
+        self.assertIn("Close-SqlConnection",text,)
 
     def test_ci_image_uses_python314_and_development_requirements(self):
         dockerfile = Path("Dockerfile.ci").read_text(encoding="utf-8")
@@ -86,6 +94,7 @@ class DockerConfigTests(unittest.TestCase):
             "./env/rabbitmq.env",
             "./env/recording.env",
             "./env/infrastructure.env",
+            "./env/database.env",
             "./env/splunk.env",
         ):
             self.assertIn(env_file, compose)
@@ -142,6 +151,7 @@ class DockerConfigTests(unittest.TestCase):
             "rabbitmq.env.example": "RABBITMQ_SITE1_PASSWORD=<TBD>",
             "recording.env.example": "RECORDING_MANAGER_WEBAPP_URL=<TBD>",
             "infrastructure.env.example": "SSH_PRIVATE_KEY_PATH=<TBD>",
+            "database.env.example": "DATABASE_PAIR_COUNT=3",
             "splunk.env.example": "SPLUNK_DASHBOARD_COUNT=<TBD>",
         }
         for filename, expected in examples.items():
