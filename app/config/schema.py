@@ -17,6 +17,7 @@ VALID_MODULES = {
     "rabbitmq",
     "recording",
     "infrastructure",
+    "database",
     "splunk",
 }
 VALID_NOTE_SCOPES = {"MODULE", "RESULT", "SPLUNK_DASHBOARD", "GENERAL"}
@@ -30,6 +31,8 @@ RABBITMQ_HEALTH_STATES = {"green"}
 RECORDING_SUPPORTED_COLLECTION_MODES = {"fixture", "live"}
 RECORDING_SUPPORTED_WORKFLOWS = {"existing_device_start_stop"}
 RECORDING_INITIAL_STATES = {"not_recording"}
+DATABASE_SUPPORTED_COLLECTION_MODES = {"fixture", "live"}
+DATABASE_SUPPORTED_ADAPTERS = {"existing_powershell_script"}
 SSH_SUPPORTED_AUTH_TYPES = {"private_key", "fixture"}
 SSH_SUPPORTED_HOST_KEY_POLICIES = {"strict", "fixture"}
 

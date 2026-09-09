@@ -5,11 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from app.collectors.database import DatabaseCollector
 from app.collectors.infrastructure import normalize_chrony
 from app.database.repository import Repository
 from app.domain import CheckStatus
 from app.evidence.manager import EvidenceManager
 from app.orchestrator.run_context import RunContext
+from app.validators.database import DatabaseValidator
 from app.validators.infrastructure import InfrastructureValidator
 from app.validators.portainer import PortainerValidator
 from tests.fixtures.config_factory import load_fixture_config
@@ -119,6 +121,34 @@ class ValidatorTests(unittest.TestCase):
                 },
             },
         )
+
+    def test_database_unverified_result_contract_is_error(self):
+        config = load_fixture_config()
+        actual = copy.deepcopy(config["database"]["fixture_actual"])
+        results = DatabaseValidator().validate(
+            actual,
+            config,
+            self.context(config),
+        )
+        self.assertEqual(len(results), 1)
+        result = results[0]
+        self.assertEqual(result.status, CheckStatus.ERROR)
+        self.assertEqual(result.check_id, "database.sync_execution")
+        self.assertEqual(
+            result.metadata.get("error_code"),
+            "DATABASE_SYNC_SCRIPT_RESULT_CONTRACT_UNVERIFIED",
+        )
+
+    def test_database_live_adapter_is_blocked_until_script_contract_is_supplied(self):
+        config = load_fixture_config()
+        config["database"] = {
+            "collection_mode": "live",
+            "adapter": "existing_powershell_script",
+            "script": {"path": "scripts/database/database_sync_check.ps1"},
+        }
+        config["_config_dir"] = str(Path.cwd() / "config")
+        actual = DatabaseCollector().collect(self.context(config))
+        self.assertEqual(actual["errors"][0]["code"], "DATABASE_SYNC_SCRIPT_CONTRACT_UNAVAILABLE")
 
 
 if __name__ == "__main__":

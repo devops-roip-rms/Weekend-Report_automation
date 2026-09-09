@@ -13,6 +13,7 @@ from app.evidence.manager import EvidenceManager
 from app.orchestrator.run_context import RunContext
 from app.orchestrator.runner import OrchestratorRunner
 from app.reporting.snapshot import finalize_run
+from app.review.finalization import FinalizationReadinessError
 from tests.fixtures.config_factory import load_fixture_config
 
 
@@ -42,18 +43,17 @@ def main() -> int:
             before_statuses = {item.id: item.status.value for item in repo.list_results(run.run_id)}
 
             note_texts: list[str] = []
-            for module in approval_config["rules"]["review"]["required_module_notes"]:
-                module_note = f"CI E2E reviewed module {module}"
-                repo.save_note(
-                    ReviewNote(
-                        run.run_id,
-                        NoteScope.MODULE,
-                        "ci-reviewer",
-                        module_note,
-                        module=module,
-                    )
+            module_note = "CI E2E module review note"
+            repo.save_note(
+                ReviewNote(
+                    run.run_id,
+                    NoteScope.MODULE,
+                    "ci-reviewer",
+                    module_note,
+                    module="portainer",
                 )
-                note_texts.append(module_note)
+            )
+            note_texts.append(module_note)
 
             for result in repo.list_results(run.run_id):
                 if result.status.value != "PASS":
@@ -87,16 +87,33 @@ def main() -> int:
             repo.save_note(ReviewNote(run.run_id, NoteScope.GENERAL, "ci-reviewer", general_note))
             note_texts.append(general_note)
 
+            try:
+                finalize_run(
+                    repo,
+                    evidence,
+                    approval_config,
+                    run.run_id,
+                    "ci-reviewer",
+                    ReviewDecision.APPROVE,
+                )
+            except FinalizationReadinessError as exc:
+                assert "ERROR" in str(exc), (
+                    "APPROVE should be blocked by the intentional Database ERROR"
+                )
+            else:
+                raise AssertionError(
+                    "APPROVE unexpectedly succeeded despite the intentional Database ERROR"
+                )
             snapshot = finalize_run(
                 repo,
                 evidence,
                 approval_config,
                 run.run_id,
                 "ci-reviewer",
-                ReviewDecision.APPROVE,
+                ReviewDecision.REJECT,
             )
             finalized = repo.get_run(run.run_id)
-            assert finalized.state is RunState.APPROVED
+            assert finalized.state is RunState.REJECTED
             assert finalized.final_snapshot_path
             assert finalized.final_pdf_path
 
@@ -120,7 +137,7 @@ def main() -> int:
             assert repo.list_evidence(run.run_id), "safe E2E produced no evidence"
             print(
                 "safe CI end-to-end passed: create -> claim -> execute -> evidence -> "
-                "review -> notes -> approve -> snapshot -> final PDF"
+                "review -> notes -> approval blocked on ERROR -> reject -> snapshot -> final PDF"
             )
             return 0
         finally:

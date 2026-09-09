@@ -329,6 +329,9 @@ DOCTOR
 
 Recording
   live collector is intentionally blocked
+
+Database
+  scripts/database/database_sync_check.ps1 is empty
 ```
 
 If these modules remain enabled/required in `rules.yml`, a complete production run cannot be treated

@@ -269,6 +269,7 @@ The framework supports the following module boundaries, but real environment ena
 - Portainer: read-only Docker Swarm service discovery, independent site health, and cross-site parity.
 - RabbitMQ: Management API topology/metrics validation.
 - Infrastructure: read-only SSH/command collection for root-filesystem usage and Chrony/NTP state.
+- Database: approved PowerShell adapter boundary; the production sync/check script is still empty and blocks live readiness.
 - DOCTOR: dynamic cross-site service validation is implemented, but the live API adapter is not implemented yet.
 - Splunk: human dashboard review.
 - Recording: existing-device workflow and recovery policy are implemented, but live collection/control remains intentionally blocked.

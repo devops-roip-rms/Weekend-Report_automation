@@ -60,6 +60,7 @@ MODULES = [
     "rabbitmq",
     "recording",
     "infrastructure",
+    "database",
     "splunk",
 ]
 

@@ -271,7 +271,43 @@ RECOVERY_REQUIRED
 
 No automatic replay.
 
-## 6. Infrastructure
+## 6. Database
+
+### `database.sync_execution`
+
+Actual:
+- owner-supplied PowerShell script adapter result.
+
+ERROR:
+- script missing/empty;
+- script runtime/result contract unverified;
+- script exception;
+- malformed result;
+- unresolved live config.
+
+### Structured steps
+
+Expected true:
+
+- create success;
+- replication after create;
+- delete success;
+- replication after delete;
+- cleanup complete.
+
+PASS:
+- true.
+
+FAIL:
+- reliable false.
+
+ERROR:
+- missing/unknown/malformed.
+
+WARNING:
+- only for explicitly non-blocking errors while required booleans remain true.
+
+## 7. Infrastructure
 
 ### Collection
 
@@ -310,7 +346,7 @@ FAIL:
 ERROR:
 - output unavailable/malformed.
 
-## 7. DOCTOR
+## 8. DOCTOR
 
 API mode discovers the complete service inventory returned by each site dynamically. Every discovered service is validated independently, and the two discovered service sets must match.
 
@@ -345,7 +381,7 @@ ERROR:
 
 The underlying `doctor.service.health` `ERROR` remains recorded as `ERROR` in evidence and reporting.
 
-## 8. Splunk
+## 9. Splunk
 
 Actual:
 - persisted human dashboard review state.
@@ -364,7 +400,7 @@ Evidence:
 
 Opening a dashboard URL is not review completion.
 
-## 9. Review / Finalization
+## 10. Review / Finalization
 
 ### `review.note_ownership`
 
@@ -396,7 +432,7 @@ Narrow DOCTOR finalization exception:
 - the same result set contains `doctor.module_status=MANUAL_REVIEW`;
 - the reviewer has saved the required acknowledgment/note on that module-level manual-review result.
 
-This exception does not apply to DOCTOR transport/API/authentication/timeout/schema/collection errors, configuration errors, infrastructure errors, RabbitMQ errors, Recording errors, Portainer errors, or any unrelated `ERROR`.
+This exception does not apply to DOCTOR transport/API/authentication/timeout/schema/collection errors, configuration errors, infrastructure errors, RabbitMQ errors, Recording errors, Database errors, Portainer errors, or any unrelated `ERROR`.
 
 FAIL:
 - explicit status policy blocks approval.
@@ -417,7 +453,7 @@ ERROR -> PASS
 
 Automated status and reviewer decision remain separate facts.
 
-## 10. Evidence
+## 11. Evidence
 
 ### `evidence.persistence`
 
@@ -434,7 +470,7 @@ ERROR:
 
 Raw evidence must be sanitized of known credentials/tokens.
 
-## 11. Auth / CSRF
+## 12. Auth / CSRF
 
 ### `auth.production_reviewer_identity`
 
@@ -458,7 +494,7 @@ FAIL:
 ERROR:
 - signing configuration missing.
 
-## 12. Recovery
+## 13. Recovery
 
 ### `recovery.stale_worker`
 
@@ -477,7 +513,7 @@ PASS:
 ERROR:
 - unresolved/invalid recovery.
 
-## 13. Reporting
+## 14. Reporting
 
 ### `reporting.final_pdf_access`
 
@@ -498,7 +534,7 @@ PASS:
 ERROR:
 - completeness mismatch.
 
-## 14. Docker Runtime
+## 15. Docker Runtime
 
 ### `docker.runtime_secret_boundary`
 
@@ -530,7 +566,7 @@ ERROR/FAIL:
 Important:
 `compose.ci.yml` must not rebuild a different image.
 
-## 15. CI / Release Validation
+## 16. CI / Release Validation
 
 ### `ci.pre_image_quality`
 
@@ -639,7 +675,7 @@ PASS:
 FAIL:
 - production secret names/values are embedded where forbidden.
 
-## 16. Release Artifact
+## 17. Release Artifact
 
 Verified artifact contains:
 

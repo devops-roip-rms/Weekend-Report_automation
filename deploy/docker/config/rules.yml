@@ -19,6 +19,10 @@ modules:
     enabled: true
     required: true
     if_unavailable_status: ERROR
+  database:
+    enabled: true
+    required: true
+    if_unavailable_status: ERROR
   splunk:
     enabled: true
     required: true
@@ -159,6 +163,15 @@ infrastructure:
     critical_offset: 1.0
     required: true
 
+database:
+  adapter: existing_powershell_script
+  script:
+    path: scripts/database/database_sync_check.ps1
+    execution_timeout_seconds: 300
+  algorithm:
+    description: Approved existing database synchronization script boundary.
+    rewrite_algorithm: false
+
 splunk:
   dashboard_defaults:
     required_review: true
@@ -175,6 +188,7 @@ review:
     - rabbitmq
     - recording
     - infrastructure
+    - database
     - splunk
   result_note_required_statuses:
     - MANUAL_REVIEW

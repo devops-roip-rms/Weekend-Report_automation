@@ -25,6 +25,7 @@ def valid_env() -> dict[str, str]:
         "WEEKEND_REPORT_AUTHORIZED_REVIEWERS": "fixture-reviewer",
         "WEEKEND_REPORT_CSRF_SIGNING_KEY": "fixture-csrf-signing-key",
         "WEEKEND_REPORT_CSRF_TTL_SECONDS": "3600",
+        "DATABASE_COLLECTION_MODE": "live",
         "PORTAINER_COLLECTION_MODE": "live",
         "PORTAINER_API_CONTRACT": "docker_proxy_v1",
         "PORTAINER_AUTH_TYPE": "x_api_key",
@@ -88,6 +89,7 @@ def fixture_env() -> dict[str, str]:
     env = valid_env()
     env.update(
         {
+            "DATABASE_COLLECTION_MODE": "fixture",
             "PORTAINER_COLLECTION_MODE": "fixture",
             "RABBITMQ_COLLECTION_MODE": "fixture",
             "RECORDING_COLLECTION_MODE": "fixture",
@@ -107,6 +109,7 @@ def load_fixture_config() -> dict:
     config["rabbitmq_expected"]["fixture_actual"] = {"sites": copy.deepcopy(RABBITMQ_SITES)}
     config["recording"]["fixture_actual"] = copy.deepcopy(RECORDING_ACTUAL)
     config["servers"]["fixture_actual"] = {"sites": copy.deepcopy(INFRASTRUCTURE_SITES)}
+    config["database"]["fixture_actual"] = {"sites": copy.deepcopy(DATABASE_SITES)}
     return config
 
 
@@ -264,5 +267,28 @@ INFRASTRUCTURE_SITES = {
                 },
             }
         }
+    },
+}
+
+DATABASE_SITES = {
+    "site1": {
+        "target": "fixture-db-site1",
+        "create_success": True,
+        "replication_after_create": True,
+        "delete_success": True,
+        "replication_after_delete": True,
+        "cleanup_complete": True,
+        "errors": [],
+        "evidence": {"algorithm": "approved script fixture"},
+    },
+    "site2": {
+        "target": "fixture-db-site2",
+        "create_success": True,
+        "replication_after_create": True,
+        "delete_success": True,
+        "replication_after_delete": True,
+        "cleanup_complete": True,
+        "errors": [],
+        "evidence": {"algorithm": "approved script fixture"},
     },
 }
