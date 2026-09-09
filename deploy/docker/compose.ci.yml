@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: ${WEEKEND_REPORT_CI_POSTGRES_IMAGE:-postgres:16-alpine}
+    image: cr.io:5000/postgres-16-alpine
     environment:
       POSTGRES_DB: weekend_report_ci
       POSTGRES_USER: weekend_report

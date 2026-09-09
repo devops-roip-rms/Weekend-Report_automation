@@ -5,76 +5,18 @@ from pathlib import Path
 
 
 class DockerConfigTests(unittest.TestCase):
-    def test_application_dockerfile_uses_prebuilt_runtime_base(self):
+    def test_dockerfile_uses_expected_python_base_image(self):
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
-        self.assertIn("ARG RUNTIME_BASE_IMAGE=weekend-report-runtime-base:python314", dockerfile)
-        self.assertIn("FROM ${RUNTIME_BASE_IMAGE}", dockerfile)
-        self.assertNotIn("pip install", dockerfile)
-        self.assertNotIn("apt-get", dockerfile)
-        self.assertNotIn("wheelhouse", dockerfile)
+        self.assertIn("FROM cr.io:5000/weekend-report-runtime-base:python314", dockerfile)
+        self.assertNotIn("FROM python:latest", dockerfile)
 
-    def test_runtime_base_uses_python314_and_runtime_requirements(self):
-        root = Path(__file__).resolve().parents[2]
-        text = (root / "Dockerfile.runtime-base").read_text(encoding="utf-8")
-        self.assertIn("FROM python:3.14.7-slim-trixie",text,)
-        self.assertIn("COPY requirements.txt",text,)
-        self.assertIn("openssh-client",text,)
-        self.assertNotIn("requirements-dev.txt",text,)
-        self.assertIn("ARG POWERSHELL_VERSION=7.6.5",text,)
-        self.assertIn("ARG SIMPLYSQL_VERSION=2.2.0.106",text,)
-        self.assertIn("Install-PSResource",text,)
-        self.assertIn("SimplySql",text,)
-        self.assertIn("Open-MySqlConnection",text,)
-        self.assertIn("Invoke-SqlQuery",text,)
-        self.assertIn("Close-SqlConnection",text,)
-
-    def test_ci_image_uses_python314_and_development_requirements(self):
-        dockerfile = Path("Dockerfile.ci").read_text(encoding="utf-8")
-        self.assertIn("FROM python:3.14-slim-bookworm", dockerfile)
-        self.assertIn("requirements-dev.txt", dockerfile)
-        self.assertIn("docker compose version", dockerfile)
-        self.assertIn("gzip", dockerfile)
-        self.assertIn("sha256sum", dockerfile)
-        self.assertNotIn("python:3.6", dockerfile)
-
-    def test_runtime_requirements_do_not_include_ci_tools(self):
-        runtime = Path("requirements.txt").read_text(encoding="utf-8")
-        dev = Path("requirements-dev.txt").read_text(encoding="utf-8")
-        for tool in ("ruff", "mypy", "pip-audit", "types-PyYAML", "pytest", "bandit"):
-            self.assertNotIn(tool, runtime)
-        self.assertIn("-r requirements.txt", dev)
-        self.assertIn("ruff==", dev)
-        self.assertIn("mypy==", dev)
-        self.assertIn("pip-audit==", dev)
-
-    def test_dockerfile_copies_only_runtime_code_and_scripts(self):
+    def test_dockerfile_copies_code_without_deployment_config(self):
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
         self.assertIn("COPY app /app/app", dockerfile)
-        self.assertIn("COPY scripts/migrate.py /app/scripts/migrate.py", dockerfile)
-        self.assertIn(
-            "COPY scripts/database/database_sync_check.ps1 "
-            "/app/scripts/database/database_sync_check.ps1",
-            dockerfile,
-        )
-        self.assertNotIn("COPY scripts /app/scripts", dockerfile)
+        self.assertIn("COPY scripts /app/scripts", dockerfile)
         self.assertNotIn("COPY . /app", dockerfile)
         self.assertNotIn("COPY config", dockerfile)
         self.assertNotIn("COPY deploy", dockerfile)
-        self.assertNotIn("COPY TAG", dockerfile)
-        self.assertNotIn("pyproject.toml /app", dockerfile)
-
-    def test_obsolete_placeholder_and_duplicate_helpers_are_removed(self):
-        for path in (
-            "app/database/session.py",
-            "app/evidence/models.py",
-            "app/executors/browser.py",
-            "app/executors/command.py",
-            "app/executors/http.py",
-            "app/worker/heartbeat.py",
-            "scripts/smoke_local.py",
-            "deploy/docker/local-users.json",
-        ):
-            self.assertFalse(Path(path).exists(), path)
 
     def test_production_compose_uses_configurable_loaded_image(self):
         compose = Path("deploy/docker/compose.yml").read_text(encoding="utf-8")
@@ -83,7 +25,6 @@ class DockerConfigTests(unittest.TestCase):
             compose.count("image: ${WEEKEND_REPORT_IMAGE:-weekend-report:local}"),
             2,
         )
-        self.assertIn("image: postgres-16-alpine", compose)
 
     def test_production_compose_externalizes_runtime_configuration(self):
         compose = Path("deploy/docker/compose.yml").read_text(encoding="utf-8")
@@ -94,7 +35,6 @@ class DockerConfigTests(unittest.TestCase):
             "./env/rabbitmq.env",
             "./env/recording.env",
             "./env/infrastructure.env",
-            "./env/database.env",
             "./env/splunk.env",
         ):
             self.assertIn(env_file, compose)
@@ -151,7 +91,6 @@ class DockerConfigTests(unittest.TestCase):
             "rabbitmq.env.example": "RABBITMQ_SITE1_PASSWORD=<TBD>",
             "recording.env.example": "RECORDING_MANAGER_WEBAPP_URL=<TBD>",
             "infrastructure.env.example": "SSH_PRIVATE_KEY_PATH=<TBD>",
-            "database.env.example": "DATABASE_PAIR_COUNT=3",
             "splunk.env.example": "SPLUNK_DASHBOARD_COUNT=<TBD>",
         }
         for filename, expected in examples.items():

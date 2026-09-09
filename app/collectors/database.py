@@ -4,12 +4,7 @@ import copy
 from typing import Any
 
 from app.collectors.base import Collector
-from app.executors.database_sync_test import (
-    DatabaseSyncExecutionError,
-    DatabaseSyncResultError,
-    DatabaseSyncScriptBlocked,
-    run_database_sync_test,
-)
+from app.executors.database_sync_test import DatabaseSyncScriptBlocked, run_database_sync_test
 from app.orchestrator.run_context import RunContext
 from app.time_utils import iso_now
 
@@ -43,16 +38,8 @@ class DatabaseCollector(Collector):
             }
         try:
             actual = run_database_sync_test(config, context.config)
-        except (
-            DatabaseSyncScriptBlocked,
-            DatabaseSyncExecutionError,
-            DatabaseSyncResultError,
-        ) as exc:
-            return _error_payload(
-                exc.code,
-                exc.message,
-                metadata=exc.metadata,
-            )
+        except DatabaseSyncScriptBlocked as exc:
+            return _error_payload(exc.code, exc.message, metadata=exc.metadata)
         except Exception as exc:
             return _error_payload("DATABASE_SYNC_SCRIPT_ADAPTER_ERROR", str(exc))
         if not isinstance(actual, dict):

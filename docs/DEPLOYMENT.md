@@ -6,86 +6,54 @@
 
 Weekend Report is designed so the runtime server does not need the source repository.
 
+The intended model is:
+
 ```text
-Internet-connected build PC
-  source + Dockerfile.ci + Dockerfile.runtime-base
+Build / packaging PC
+  source code
+  tests
+  CI files
+  Dockerfile
+  ENV templates
+  deployment files
         |
-        | prepare support images
-        v
-Closed GitLab/build environment
-  weekend-report-ci:python314
-  weekend-report-runtime-base:python314
-        |
-        | quality -> final image build -> smoke -> export
+        | build / verify / export
         v
 Runtime server
-  weekend-report:<version>
-  postgres-16-alpine
-  Compose + external ENV/policy/secrets
+  Weekend Report image
+  PostgreSQL image
+  Compose files
+  runtime ENV files
+  rules.yml
+  required secrets
+  optional TLS files
 ```
 
-The runtime server does not need Python, Git, tests, CI files, Dockerfiles, requirements files, wheelhouses, or application source once the verified application image has been exported.
+Python, Git, tests, GitHub/GitLab files, and application source are not required on the runtime
+server once the images have been built.
 
-## 2. Build-Time Support Images
+## 2. Required Runtime Images
 
-Two support images are prepared on an Internet-connected machine. They are build/CI dependencies, not runtime-server dependencies.
-
-### 2.1 Closed-network CI image
-
-```powershell
-docker build --pull `
-  -f Dockerfile.ci `
-  -t weekend-report-ci:python314 `
-  .
-```
-
-The closed GitLab configuration expects this image at:
-
-```text
-weekend-report-ci:python314
-```
-
-### 2.2 Production runtime base
-
-```powershell
-docker build --pull `
-  -f Dockerfile.runtime-base `
-  -t weekend-report-runtime-base:python314 `
-  .
-```
-
-The closed GitLab image job expects:
-
-```text
-weekend-report-runtime-base:python314
-```
-
-Transfer these support images through the approved offline process, then load/tag/push them into the closed registry. Generated support-image TAR files are transfer artifacts and must not be committed to Git.
-
-See `docs/CI_CD.md` for the exact preparation commands and rebuild rules.
-
-## 3. Required Runtime Images
-
-The production Compose stack itself needs only:
+The production Compose stack uses two images:
 
 ```text
 weekend-report:<version>
-postgres-16-alpine
+cr.io:5000/postgres-16-alpine
 ```
 
-The runtime-base image is already incorporated into the final Weekend Report image layers and does not need to be deployed as a separate Compose service.
+For an offline server, both images must already be loaded locally.
 
-For an offline runtime server, both required runtime images must already be loaded locally.
+Do not assume the Weekend Report image alone is enough to start the stack.
 
-## 4. Final Runtime Folder
+## 3. Final Runtime Folder
 
 A minimal deployment directory should look like:
 
 ```text
 weekend-report/
   compose.yml
-  compose.direct.yml        # only direct HTTPS mode
-  compose.proxy.yml         # only reverse-proxy mode
+  compose.direct.yml        # only if direct HTTPS mode is used
+  compose.proxy.yml         # only if reverse-proxy mode is used
   .env
 
   env/
@@ -119,41 +87,50 @@ docs/
 .github/
 .gitlab-ci-cd/
 .gitlab-ci.yml
-Dockerfile*
+Dockerfile
 pyproject.toml
-requirements*.txt
+requirements.txt
 ```
 
-## 5. Build the Weekend Report Image
+## 4. Build the Weekend Report Image
 
-On a connected/local build machine where `weekend-report-runtime-base:python314` exists:
+On the build/second PC, from the project root:
 
 ```powershell
 $Version = (Get-Content .\TAG -Raw).Trim()
 
-docker build `
-  --build-arg RUNTIME_BASE_IMAGE=weekend-report-runtime-base:python314 `
+docker build --no-cache `
   -t "weekend-report:$Version" `
   .
 ```
 
-In the closed GitLab pipeline, `.gitlab-ci-cd/image.yml` supplies the internal base automatically:
-
-```text
-weekend-report-runtime-base:python314
-```
-
-The root `TAG` is the release-version source used by CI/release automation.
-
-## 6. Export Runtime Images for the Offline Server
-
-Obtain the approved PostgreSQL image first:
+Verify the image exists:
 
 ```powershell
-docker pull postgres-16-alpine
+docker image inspect "weekend-report:$Version"
 ```
 
-Then save the verified application image and PostgreSQL image:
+The root `TAG` remains the release-version source used by CI/release automation.
+
+## 5. Obtain the PostgreSQL Image
+
+The stack expects:
+
+```text
+cr.io:5000/postgres-16-alpine
+```
+
+On a connected build PC:
+
+```powershell
+docker pull cr.io:5000/postgres-16-alpine
+```
+
+If the build PC is offline, load an approved previously transferred copy instead.
+
+## 6. Export Images for an Offline Server
+
+Save both required images into one archive:
 
 ```powershell
 $Version = (Get-Content .\TAG -Raw).Trim()
@@ -161,17 +138,28 @@ $Version = (Get-Content .\TAG -Raw).Trim()
 docker save `
   -o "weekend-report-runtime_$Version.tar" `
   "weekend-report:$Version" `
-  "postgres-16-alpine"
+  "cr.io:5000/postgres-16-alpine"
+```
 
+Generate a checksum:
+
+```powershell
 Get-FileHash `
   ".\weekend-report-runtime_$Version.tar" `
   -Algorithm SHA256
 ```
 
-Transfer the TAR and SHA-256 through the approved process. On the runtime server:
+Transfer the TAR and recorded SHA-256 through the approved offline-transfer process.
+
+On the runtime server:
 
 ```bash
 docker load -i weekend-report-runtime_<version>.tar
+```
+
+Confirm both images are present:
+
+```bash
 docker image ls
 ```
 
@@ -565,15 +553,14 @@ SOURCE / BUILD PC ONLY
   tests/
   docs/
   scripts/
-  Dockerfile*
-  requirements*.txt
+  Dockerfile
   CI/CD files
   TAG
   ENV templates
 
 RUNTIME SERVER
   weekend-report image
-  postgres-16-alpine image
+  cr.io:5000/postgres-16-alpine image
   compose.yml
   one mode override
   .env

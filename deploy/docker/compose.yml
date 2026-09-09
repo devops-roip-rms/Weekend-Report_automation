@@ -5,7 +5,6 @@ x-weekend-env-files: &weekend_env_files
   - ./env/rabbitmq.env
   - ./env/recording.env
   - ./env/infrastructure.env
-  - ./env/database.env
   - ./env/splunk.env
 
 x-app-volumes: &app_volumes
@@ -21,7 +20,7 @@ x-default-logging: &default_logging
 
 services:
   postgres:
-    image: postgres-16-alpine
+    image: cr.io:5000/postgres-16-alpine
     env_file:
       - ./env/app.env
     volumes:

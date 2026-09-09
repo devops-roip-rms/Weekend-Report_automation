@@ -1,6 +1,6 @@
 # Stale Worker And Recovery Policy
 
-**Documentation synchronized:** 2026-09-07
+**Documentation synchronized:** 2026-08-23
 
 Weekend Report runs are manually triggered, stored in the database, and claimed by one
 persistent worker. The worker records its identity, current module, and heartbeat while a run is

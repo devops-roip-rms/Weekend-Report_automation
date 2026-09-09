@@ -1,6 +1,6 @@
 # Architecture
 
-**Documentation synchronized:** 2026-09-07
+**Documentation synchronized:** 2026-09-06
 
 ## 1. System Purpose
 
@@ -53,15 +53,12 @@ Final PDF
 
 The same application image is used for web and worker with different commands.
 
-Current Python/runtime baseline:
+Current Python baseline:
 
 ```text
 Python 3.14
-Runtime base image: weekend-report-runtime-base:python314
-Runtime base source: python:3.14-slim-bookworm
+Docker base: python:3.14-slim-bookworm pinned by digest
 ```
-
-The final application image contains only application/runtime content and inherits production Python dependencies, CA certificates, and the SSH client from the prebuilt runtime base.
 
 ## 3. Runtime Security Boundary
 

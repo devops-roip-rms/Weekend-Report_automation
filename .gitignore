@@ -1,44 +1,28 @@
-# Local environment / secrets
 .env
 .env.*
 !.env.example
-deploy/docker/.env
-deploy/docker/env/*.env
-!deploy/docker/env/*.env.example
-deploy/docker/secrets/
-deploy/docker/tls/
-
-# Python / test / tooling caches
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
-coverage.xml
 htmlcov/
-
-# Local runtime state
+coverage.xml
+.coverage
 runs/
 data/
+.docker-temp/
 *.sqlite
 *.db
-
-# Virtual environments / editors
-.venv/
 .idea/
 .vscode/
 
-# Generated build / transfer artifacts
 dist/
-runtime-bundle/
-wheelhouse/
-.docker-temp/
-weekend-report-runtime-base-*.tar
-weekend-report-runtime-base-*.tar.gz
-weekend-report-ci-*.tar
-weekend-report-ci-*.tar.gz
-weekend-report-runtime_*.tar
-weekend-report-runtime_*.tar.gz
-image-id.txt
-release-image-id.txt
+.venv/
+
+# Local production authentication / TLS material
+deploy/docker/secrets/
+deploy/docker/tls/
+deploy/docker/.env
+deploy/docker/env/*.env
+!deploy/docker/env/*.env.example

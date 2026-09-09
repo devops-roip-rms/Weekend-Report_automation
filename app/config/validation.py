@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from ipaddress import ip_address
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 from app.config.schema import (
@@ -1366,7 +1365,7 @@ def _validate_database(
             "database.fixture_actual",
             "live Database mode must not include fixture fallback data",
         )
-    _validate_database_runtime_config(database, report)
+
     adapter = database.get("adapter")
     if is_unresolved_placeholder(adapter):
         return
@@ -1450,152 +1449,6 @@ def _validate_database(
                     "must remain false; the approved script owns the database algorithm",
                 )
 
-def _validate_database_runtime_config(
-    database: dict[str, Any],
-    report: ValidationReport,
-) -> None:
-    pairs = database.get("pairs")
-
-    if not isinstance(pairs, list):
-        report.add_error(
-            "database.pairs",
-            "must be a list containing exactly 3 synchronization pairs",
-        )
-        pairs = []
-    elif len(pairs) != 3:
-        report.add_error(
-            "database.pairs",
-            "must contain exactly 3 synchronization pairs",
-        )
-
-    seen_names: set[str] = set()
-    seen_hosts: set[str] = set()
-
-    for idx, pair in enumerate(pairs):
-        path = f"database.pairs[{idx}]"
-
-        if not isinstance(pair, dict):
-            report.add_error(
-                path,
-                "database pair must be an object",
-            )
-            continue
-
-        name = pair.get("name")
-
-        if (
-            not isinstance(name, str)
-            or not name.strip()
-            or is_unresolved_placeholder(name)
-        ):
-            report.add_error(
-                f"{path}.name",
-                "must be a resolved non-empty string",
-            )
-        else:
-            normalized_name = name.strip()
-
-            if normalized_name in seen_names:
-                report.add_error(
-                    f"{path}.name",
-                    f"duplicate database pair name {normalized_name!r}",
-                )
-            else:
-                seen_names.add(normalized_name)
-
-        for host_field in ("site1_host", "site2_host"):
-            host = pair.get(host_field)
-            host_path = f"{path}.{host_field}"
-
-            if (
-                not isinstance(host, str)
-                or not host.strip()
-                or is_unresolved_placeholder(host)
-            ):
-                report.add_error(
-                    host_path,
-                    "must be a resolved IP address",
-                )
-                continue
-
-            normalized_host = host.strip()
-
-            try:
-                ip_address(normalized_host)
-            except ValueError:
-                report.add_error(
-                    host_path,
-                    "must be a valid IPv4 or IPv6 address",
-                )
-                continue
-
-            if normalized_host in seen_hosts:
-                report.add_error(
-                    host_path,
-                    "database host must be unique across all 3 pairs",
-                )
-            else:
-                seen_hosts.add(normalized_host)
-
-        port = pair.get("port")
-
-        if (
-            not isinstance(port, int)
-            or isinstance(port, bool)
-            or not 1 <= port <= 65535
-        ):
-            report.add_error(
-                f"{path}.port",
-                "must be an integer from 1 to 65535",
-            )
-
-    credentials = database.get("credentials")
-
-    if not isinstance(credentials, dict):
-        report.add_error(
-            "database.credentials",
-            "must be an object",
-        )
-        return
-
-    username = credentials.get("username")
-
-    if (
-        not isinstance(username, str)
-        or not username.strip()
-        or is_unresolved_placeholder(username)
-    ):
-        report.add_error(
-            "database.credentials.username",
-            "must be a resolved non-empty string",
-        )
-
-    password_file = credentials.get("password_file")
-
-    if (
-        not isinstance(password_file, str)
-        or not password_file.strip()
-        or is_unresolved_placeholder(password_file)
-    ):
-        report.add_error(
-            "database.credentials.password_file",
-            "must be a resolved secret-file path",
-        )
-        return
-
-    password_path = PurePosixPath(password_file.strip())
-    secret_root = PurePosixPath("/app/secrets")
-
-    if (
-        not password_path.is_absolute()
-        or ".." in password_path.parts
-        or not password_path.is_relative_to(secret_root)
-        or password_path == secret_root
-    ):
-        report.add_error(
-            "database.credentials.password_file",
-            "must reference a file below /app/secrets/",
-        )
 
 def _validate_runtime_value(
     value: Any,

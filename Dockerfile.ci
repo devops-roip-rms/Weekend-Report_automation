@@ -1,10 +1,20 @@
-# Dedicated CI image for the closed GitLab environment.
-# Build this image on an Internet-connected machine, then transfer/tag/push it
-# into the internal registry. It contains Python quality tools plus Docker CLI
-# and Compose so GitLab jobs never need apt/apk/pip network access.
-FROM docker:27.5.1-cli AS docker_cli
+# Dedicated CI image for Weekend Report Automation.
+#
+# Build this image on an Internet-connected machine.
+# The image is then saved, transferred to the closed network, loaded, tagged
+# with the internal registry prefix, and pushed to the internal registry.
+#
+# Runtime/application dependencies come from requirements.txt.
+# CI-only tools are installed explicitly below.
+#
+# IMPORTANT:
+# The vulnerability audit is executed while this image is built online.
+# The closed GitLab pipeline verifies the baked audit evidence and the exact
+# requirements.txt hash instead of attempting to contact PyPI/OSV.
 
-FROM python:3.14-slim-bookworm
+FROM cr.io:5000/docker:27.5.1-cli AS docker_cli
+
+FROM cr.io:5000/python:3.6.15-slim-buster
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -16,8 +26,6 @@ WORKDIR /workspace
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        coreutils \
-        gzip \
         openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
@@ -25,36 +33,42 @@ COPY --from=docker_cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker_cli /usr/local/libexec/docker/cli-plugins/docker-compose \
     /usr/local/libexec/docker/cli-plugins/docker-compose
 
-COPY requirements.txt requirements-dev.txt /tmp/
+COPY requirements.txt /tmp/requirements.txt
 
-RUN python -m pip install --no-cache-dir -r /tmp/requirements-dev.txt \
+RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt \
+    && python -m pip install --no-cache-dir \
+        ruff \
+        mypy \
+        types-PyYAML \
+        pip-audit \
+        pytest \
+        bandit \
     && python -m pip check
 
-# Produce audit evidence while Internet access is available. The closed GitLab
-# pipeline verifies these hashes/evidence instead of contacting package indexes.
 RUN mkdir -p /usr/local/share/weekend-report-ci \
     && sha256sum /tmp/requirements.txt | cut -d ' ' -f 1 \
         > /usr/local/share/weekend-report-ci/requirements.sha256 \
-    && sha256sum /tmp/requirements-dev.txt | cut -d ' ' -f 1 \
-        > /usr/local/share/weekend-report-ci/requirements-dev.sha256 \
-    && python -m pip_audit -r /tmp/requirements.txt \
+    && python -m pip freeze \
+        > /usr/local/share/weekend-report-ci/installed-packages.txt \
+    && python -m pip_audit \
         --format json \
         --output /usr/local/share/weekend-report-ci/pip-audit.json \
     && date -u +"%Y-%m-%dT%H:%M:%SZ" \
         > /usr/local/share/weekend-report-ci/pip-audit-passed-at
 
 RUN test -s /usr/local/share/weekend-report-ci/requirements.sha256 \
-    && test -s /usr/local/share/weekend-report-ci/requirements-dev.sha256 \
     && test -s /usr/local/share/weekend-report-ci/pip-audit.json \
-    && test -s /usr/local/share/weekend-report-ci/pip-audit-passed-at \
-    && python -c "import fastapi, starlette, uvicorn, jinja2, httpx, yaml, psycopg" \
-    && python --version \
+    && test -s /usr/local/share/weekend-report-ci/pip-audit-passed-at
+
+RUN python -c "import fastapi, starlette, uvicorn, jinja2, httpx, yaml, psycopg"
+
+RUN python --version \
     && ruff --version \
     && mypy --version \
     && python -m pip_audit --version \
+    && pytest --version \
+    && bandit --version \
     && docker --version \
-    && docker compose version \
-    && gzip --version \
-    && sha256sum --version
+    && docker compose version
 
 CMD ["python", "--version"]

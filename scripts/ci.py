@@ -40,7 +40,7 @@ COMPOSE_ENV_FILE_KEYS = {
         "WEEKEND_REPORT_LOCAL_USERS_FILE",
         "WEEKEND_REPORT_SESSION_SIGNING_KEY",
         "WEEKEND_REPORT_SESSION_TTL_SECONDS",
-
+        "DATABASE_COLLECTION_MODE",
     ],
     "portainer.env": [
         "SITE_COUNT",
@@ -103,24 +103,6 @@ COMPOSE_ENV_FILE_KEYS = {
         "SITE2_SERVER_1_HOST",
         "SITE2_SERVER_1_PORT",
     ],
-    "database.env": [
-    "DATABASE_COLLECTION_MODE",
-    "DATABASE_PAIR_COUNT",
-    "DATABASE_PAIR_1_NAME",
-    "DATABASE_PAIR_1_SITE1_HOST",
-    "DATABASE_PAIR_1_SITE2_HOST",
-    "DATABASE_PAIR_1_PORT",
-    "DATABASE_PAIR_2_NAME",
-    "DATABASE_PAIR_2_SITE1_HOST",
-    "DATABASE_PAIR_2_SITE2_HOST",
-    "DATABASE_PAIR_2_PORT",
-    "DATABASE_PAIR_3_NAME",
-    "DATABASE_PAIR_3_SITE1_HOST",
-    "DATABASE_PAIR_3_SITE2_HOST",
-    "DATABASE_PAIR_3_PORT",
-    "DATABASE_USERNAME",
-    "DATABASE_PASSWORD_FILE",
-],
     "splunk.env": [
         "SPLUNK_DASHBOARD_COUNT",
         "SPLUNK_DASHBOARD_1_ID",
@@ -299,29 +281,9 @@ def gate_audit() -> None:
 
 def gate_compose_config() -> None:
     env = _ci_env()
-
     with _temporary_compose_env_files():
-        _run(
-            [
-                "docker",
-                "compose",
-                "-f",
-                str(COMPOSE_FILE),
-                "config",
-            ],
-            env=env,
-        )
-
-        _run(
-            [
-                "docker",
-                "compose",
-                "-f",
-                str(CI_COMPOSE_FILE),
-                "config",
-            ],
-            env=env,
-        )
+        _run(["docker", "compose", "-f", str(COMPOSE_FILE), "config"], env=env)
+        _run(["docker", "compose", "-f", str(CI_COMPOSE_FILE), "config"], env=env)
 
 
 def _wait_for_health(

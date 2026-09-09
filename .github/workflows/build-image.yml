@@ -2,6 +2,7 @@ name: Build Verified Image
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
@@ -33,30 +34,23 @@ jobs:
         shell: bash
         run: bash .github/scripts/derive-build-identity.sh
 
-      - name: Build production runtime base
-        shell: bash
-        run: >-
-          docker build --pull
-          -f Dockerfile.runtime-base
-          -t weekend-report-runtime-base:python314
-          .
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build image only after all pre-image gates pass
-        shell: bash
-        env:
-          IMAGE_TAG: ${{ steps.identity.outputs.image_tag }}
-          VERSION: ${{ steps.identity.outputs.version }}
-          BUILD_ID: ${{ steps.identity.outputs.build_id }}
-        run: |
-          docker build \
-            --build-arg RUNTIME_BASE_IMAGE=weekend-report-runtime-base:python314 \
-            --label "org.opencontainers.image.title=Weekend Report Automation" \
-            --label "org.opencontainers.image.version=${VERSION}" \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
-            --label "io.weekend-report.build-id=${BUILD_ID}" \
-            -t "${IMAGE_TAG}" \
-            .
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          push: false
+          tags: ${{ steps.identity.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.title=Weekend Report Automation
+            org.opencontainers.image.version=${{ steps.identity.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            io.weekend-report.build-id=${{ steps.identity.outputs.build_id }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Record exact built image ID
         shell: bash

@@ -1,8 +1,4 @@
-# Final Weekend Report application image.
-# The runtime base contains Python, runtime dependencies, CA certificates, and
-# openssh-client. GitLab overrides this ARG with the internal-registry image.
-ARG RUNTIME_BASE_IMAGE=weekend-report-runtime-base:python314
-FROM ${RUNTIME_BASE_IMAGE}
+FROM cr.io:5000/weekend-report-runtime-base:python314
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -18,8 +14,8 @@ RUN groupadd --system weekend \
         weekend
 
 COPY app /app/app
-COPY scripts/migrate.py /app/scripts/migrate.py
-COPY scripts/database/database_sync_check.ps1 /app/scripts/database/database_sync_check.ps1
+COPY scripts /app/scripts
+COPY TAG pyproject.toml /app/
 
 RUN mkdir -p /app/runs /app/data /app/config \
     && chown -R weekend:weekend /app
