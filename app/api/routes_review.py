@@ -49,12 +49,10 @@ MODULE_NAV = [
     {"id": "rabbitmq", "label": "RabbitMQ"},
     {"id": "recording", "label": "Recording"},
     {"id": "infrastructure", "label": "Infrastructure"},
-    {"id": "database", "label": "Database"},
     {"id": "splunk", "label": "Splunk"},
     {"id": "review", "label": "Review"},
 ]
 MODULE_LABELS = {
-    "database": "Database",
     "doctor": "DOCTOR",
     "infrastructure": "Infrastructure",
     "portainer": "Portainer",

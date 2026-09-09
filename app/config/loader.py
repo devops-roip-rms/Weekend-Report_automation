@@ -143,7 +143,6 @@ def _deployment_config_from_env(env: Mapping[str, str], rules: dict[str, Any]) -
         "rabbitmq_expected": _load_rabbitmq(env, rules, site_refs),
         "recording": _load_recording(env, rules, site_refs),
         "servers": _load_servers(env, rules, site_refs),
-        "database": _load_database(env, rules),
         "splunk_dashboards": _load_splunk(env, rules),
     }
 
@@ -358,16 +357,6 @@ def _load_servers(
             "command_timeout": ssh_policy.get("command_timeout", 5),
         },
         "sites": sites,
-    }
-
-
-def _load_database(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any]:
-    policy = _mapping_at(rules, "database")
-    return {
-        "collection_mode": _env_string(env, "DATABASE_COLLECTION_MODE", "live"),
-        "adapter": policy.get("adapter", "existing_powershell_script"),
-        "script": copy.deepcopy(policy.get("script", {})),
-        "algorithm": copy.deepcopy(policy.get("algorithm", {})),
     }
 
 

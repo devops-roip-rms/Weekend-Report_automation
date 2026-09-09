@@ -93,16 +93,6 @@ if ((-not (Test-Path $RootRules)) -and (Test-Path $DeployRules)) {
     Write-Host "FAIL: runtime policy file is missing: deploy\docker\config\rules.yml"
 }
 
-Write-Host "=== Database live-adapter check ==="
-$DbScript = "scripts\database\database_sync_check.ps1"
-if (-not (Test-Path $DbScript)) {
-    Write-Host "FAIL: database sync script is missing: $DbScript"
-} elseif ((Get-Item $DbScript).Length -eq 0) {
-    Write-Host "BLOCKED: database sync script exists but is empty. Supply the approved existing PowerShell sync/check script before production."
-} else {
-    Write-Host "PASS: database sync script is non-empty."
-}
-
 Write-Host ""
 Write-Host "=== Removed hardcoded inventory checks ==="
 $Needles = @("DOCTOR_EXPECTED_SERVICES", "image.reference", "image.comparison")
@@ -146,7 +136,7 @@ foreach ($File in $RuntimeFiles) {
 Write-Host ""
 if ($MissingFiles.Count -eq 0 -and $MustConfigure.Count -eq 0 -and $ShapeExit -eq 0) {
     Write-Host "RESULT: runtime ENV configuration has no unresolved values that must be filled now."
-    Write-Host "Remaining blockers are the explicitly deferred adapters/release values and any database-script block shown above."
+    Write-Host "Remaining blockers are the explicitly deferred adapters and release values shown above."
 } else {
     Write-Host "RESULT: configuration still has items that must be fixed now."
 }

@@ -20,7 +20,7 @@ x-default-logging: &default_logging
 
 services:
   postgres:
-    image: cr.io:5000/postgres-16-alpine
+    image: postgres-16-alpine
     env_file:
       - ./env/app.env
     volumes:

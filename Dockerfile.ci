@@ -12,9 +12,9 @@
 # The closed GitLab pipeline verifies the baked audit evidence and the exact
 # requirements.txt hash instead of attempting to contact PyPI/OSV.
 
-FROM cr.io:5000/docker:27.5.1-cli AS docker_cli
+FROM docker:27.5.1-cli AS docker_cli
 
-FROM cr.io:5000/python:3.6.15-slim-buster
+FROM python:3.6.15-slim-buster
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -1,4 +1,4 @@
-FROM cr.io:5000/weekend-report-runtime-base:python314
+FROM weekend-report-runtime-base:python314
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -7,7 +7,7 @@ from pathlib import Path
 class DockerConfigTests(unittest.TestCase):
     def test_dockerfile_uses_expected_python_base_image(self):
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
-        self.assertIn("FROM cr.io:5000/weekend-report-runtime-base:python314", dockerfile)
+        self.assertIn("FROM weekend-report-runtime-base:python314", dockerfile)
         self.assertNotIn("FROM python:latest", dockerfile)
 
     def test_dockerfile_copies_code_without_deployment_config(self):
@@ -46,7 +46,6 @@ class DockerConfigTests(unittest.TestCase):
         self.assertNotIn("env.example", compose)
         self.assertNotIn("PORTAINER_SITE1_TOKEN:", compose)
         self.assertNotIn("RABBITMQ_SITE1_PASSWORD:", compose)
-        self.assertNotIn("DATABASE_SYNC_SCRIPT_PATH", compose)
         self.assertNotIn("WEEKEND_REPORT_CSRF_TOKEN", compose)
 
     def test_production_worker_has_outbound_network_access(self):
@@ -96,7 +95,6 @@ class DockerConfigTests(unittest.TestCase):
         for filename, expected in examples.items():
             text = (env_dir / filename).read_text(encoding="utf-8")
             self.assertIn(expected, text)
-            self.assertNotIn("DATABASE_SYNC_SCRIPT_PATH", text)
             self.assertNotIn("WEEKEND_REPORT_APP_VERSION=1.0.1", text)
             self.assertNotIn("WR-20260812-01", text)
 

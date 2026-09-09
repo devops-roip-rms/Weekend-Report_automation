@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: cr.io:5000/postgres-16-alpine
+        image: postgres-16-alpine
         env:
           POSTGRES_DB: weekend_report_ci_test
           POSTGRES_USER: weekend_report_ci

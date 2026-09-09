@@ -27,7 +27,7 @@ GitLab quality jobs: 3.14
 Application image:   python:3.14-slim-bookworm
 Base digest:         sha256:23c59390fc717bf09f9336908199a0ae75d9c4264bf296123f94ad772fea3b52
 Validated runtime:   Python 3.14.7
-PostgreSQL CI:       cr.io:5000/postgres-16-alpine
+PostgreSQL CI:       postgres-16-alpine
 ```
 
 Important dependency compatibility pins include the Python-3.14-compatible PyYAML/Psycopg packages and the PyYAML typing stubs used by Mypy.

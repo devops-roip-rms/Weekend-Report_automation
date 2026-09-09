@@ -1,5 +1,5 @@
 image-build-smoke-export:
-  image: cr.io:5000/weekend-report-ci:python314
+  image: weekend-report-ci:python314
   stage: image
 
   needs:

@@ -346,29 +346,7 @@ LIVE RECORDING COLLECTOR: INTENTIONALLY BLOCKED
 The live control/read contract must be implemented and approved before the module can be enabled in
 production.
 
-## 13. Database Synchronization
-
-Database synchronization remains behind the approved PowerShell adapter boundary:
-
-```text
-scripts/database/database_sync_check.ps1
-```
-
-The Weekend Report application must not invent the database synchronization algorithm.
-
-Current implementation status:
-
-```text
-scripts/database/database_sync_check.ps1 is empty
-```
-
-Production preflight must continue to block live database execution until the approved script and
-its result contract are supplied.
-
-Because this script is part of the application image, it must be completed before building the
-production image unless the project is deliberately changed to mount the script externally.
-
-## 14. Splunk
+## 13. Splunk
 
 Splunk dashboard definitions come from numbered runtime ENV values.
 
@@ -386,7 +364,7 @@ The dashboard count is dynamic. Add/remove numbered entries rather than changing
 
 Dashboard review requirements and note policy remain in `rules.yml`.
 
-## 15. Business Policy in rules.yml
+## 14. Business Policy in rules.yml
 
 `deploy/docker/config/rules.yml` is the single runtime policy file.
 
@@ -407,7 +385,7 @@ It controls stable, reviewable policy such as:
 Environment-specific addresses, credentials, server lists, dashboard URLs, and tokens do not belong
 in `rules.yml`.
 
-## 16. Deployment Helper Scripts
+## 15. Deployment Helper Scripts
 
 Optional helper scripts are stored under:
 
@@ -439,7 +417,7 @@ Important:
   file;
 - `scan-unresolved-config.ps1` is useful on the deployment/build PC after the real ENV files exist.
 
-## 17. Configuration Validation
+## 16. Configuration Validation
 
 From the project root, with all runtime ENV files created:
 

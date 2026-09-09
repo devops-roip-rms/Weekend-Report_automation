@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from app.config.schema import (
-    DATABASE_SUPPORTED_ADAPTERS,
-    DATABASE_SUPPORTED_COLLECTION_MODES,
     DOCTOR_MANUAL_REVIEW_TRIGGERS,
     DOCTOR_SUPPORTED_MODES,
     NOT_APPLICABLE_ALLOWED_PATH_PARTS,
@@ -158,7 +155,6 @@ def validate_config(
     _validate_rabbitmq(config, report, production_preflight=production_preflight)
     _validate_recording(config, report, production_preflight=production_preflight)
     _validate_servers(config, report, production_preflight=production_preflight)
-    _validate_database(config, report, production_preflight=production_preflight)
     _validate_thresholds(config, report)
     _validate_runtime_environment(config, report, production_preflight=production_preflight)
     _validate_placeholders(config, report, production_preflight=production_preflight)
@@ -1319,137 +1315,6 @@ def _validate_servers(
                     )
 
 
-def _validate_database(
-    config: dict[str, Any],
-    report: ValidationReport,
-    *,
-    production_preflight: bool,
-) -> None:
-    database = config.get("database", {})
-    if not isinstance(database, dict):
-        report.add_error("database", "must be an object")
-        return
-
-    legacy_database_keys = {
-        "source_database",
-        "expected_replica_databases",
-        "temp_table_definition",
-        "cleanup_policy",
-        "replication_seconds",
-        "cleanup_seconds",
-    }
-    for key in legacy_database_keys:
-        if key in database:
-            report.add_error(
-                f"database.{key}",
-                "legacy database configuration was removed; "
-                "the approved PowerShell script owns this behavior",
-            )
-
-    mode = database.get("collection_mode")
-    if mode is None:
-        mode = "fixture" if database.get("fixture_actual") is not None else "live"
-    if is_unresolved_placeholder(mode):
-        return
-    if mode not in DATABASE_SUPPORTED_COLLECTION_MODES:
-        report.add_error("database.collection_mode", "must be fixture or live")
-        return
-
-    if mode == "fixture":
-        if not isinstance(database.get("fixture_actual"), dict):
-            report.add_error("database.fixture_actual", "fixture mode requires fixture_actual")
-        return
-
-    if database.get("fixture_actual") is not None:
-        report.add_error(
-            "database.fixture_actual",
-            "live Database mode must not include fixture fallback data",
-        )
-
-    adapter = database.get("adapter")
-    if is_unresolved_placeholder(adapter):
-        return
-    if adapter not in DATABASE_SUPPORTED_ADAPTERS:
-        report.add_error(
-            "database.adapter",
-            "must be existing_powershell_script",
-        )
-
-    script = database.get("script")
-    if not isinstance(script, dict):
-        report.add_error("database.script", "must be an object")
-        return
-
-    if "path_env" in script:
-        report.add_error(
-            "database.script.path_env",
-            "path_env is obsolete; store the approved script in the project and use script.path",
-        )
-
-    script_path = script.get("path")
-    if not is_unresolved_placeholder(script_path):
-        if not isinstance(script_path, str) or not script_path.strip():
-            report.add_error("database.script.path", "must be a non-empty project-relative path")
-        else:
-            path_obj = Path(script_path)
-            if path_obj.is_absolute() or ".." in path_obj.parts:
-                report.add_error("database.script.path", "must be a safe project-relative path")
-            elif path_obj.suffix.lower() != ".ps1":
-                report.add_error("database.script.path", "must reference a .ps1 PowerShell script")
-            elif production_preflight:
-                project_root_value = config.get("_project_root")
-                config_dir = config.get("_config_dir")
-                if isinstance(project_root_value, str) and project_root_value:
-                    project_root = Path(project_root_value).resolve()
-                elif isinstance(config_dir, str) and config_dir:
-                    project_root = Path(config_dir).resolve().parent
-                else:
-                    project_root = None
-                if project_root is not None:
-                    full_script_path = project_root / path_obj
-                    if not full_script_path.is_file():
-                        report.add_error(
-                            "database.script.path",
-                            f"script does not exist in project: {script_path}",
-                        )
-                    elif (
-                        _database_enabled(config)
-                        and not full_script_path.read_text(encoding="utf-8-sig").strip()
-                    ):
-                        report.add_error(
-                            "database.script.path",
-                            (
-                                "script is empty; execution environment and result contract "
-                                "cannot be verified"
-                            ),
-                        )
-
-    _validate_positive_number(
-        script.get("execution_timeout_seconds"),
-        "database.script.execution_timeout_seconds",
-        report,
-    )
-
-    algorithm = database.get("algorithm")
-    if not isinstance(algorithm, dict):
-        report.add_error("database.algorithm", "must be an object")
-    else:
-        description = algorithm.get("description")
-        if not is_unresolved_placeholder(description) and (
-            not isinstance(description, str) or not description.strip()
-        ):
-            report.add_error("database.algorithm.description", "must be a non-empty string")
-        rewrite = algorithm.get("rewrite_algorithm")
-        if not is_unresolved_placeholder(rewrite):
-            if not isinstance(rewrite, bool):
-                report.add_error("database.algorithm.rewrite_algorithm", "must be boolean")
-            elif rewrite is not False:
-                report.add_error(
-                    "database.algorithm.rewrite_algorithm",
-                    "must remain false; the approved script owns the database algorithm",
-                )
-
-
 def _validate_runtime_value(
     value: Any,
     path: str,
@@ -1519,11 +1384,6 @@ def _recording_enabled(config: dict[str, Any]) -> bool:
 
 def _infrastructure_enabled(config: dict[str, Any]) -> bool:
     module = _module_rules(config).get("infrastructure", {})
-    return bool(module.get("enabled") and module.get("required"))
-
-
-def _database_enabled(config: dict[str, Any]) -> bool:
-    module = _module_rules(config).get("database", {})
     return bool(module.get("enabled") and module.get("required"))
 
 

@@ -13,7 +13,6 @@ from app.orchestrator.run_context import RunContext
 from app.orchestrator.runner import OrchestratorRunner
 from app.reporting.html import render_final_html
 from app.reporting.snapshot import finalize_run
-from app.review.finalization import FinalizationReadinessError
 from tests.fixtures.config_factory import load_fixture_config
 
 
@@ -93,27 +92,18 @@ class RunWorkflowTests(unittest.TestCase):
             ReviewNote(run.run_id, NoteScope.RESULT, "reviewer", "result note", result_id=result.id)
         )
         self.save_required_approval_notes(run.run_id)
-        with self.assertRaises(FinalizationReadinessError):
-            finalize_run(
-                self.repo,
-                self.evidence,
-                self.config,
-                run.run_id,
-                "reviewer",
-                ReviewDecision.APPROVE,
-            )
         snapshot = finalize_run(
             self.repo,
             self.evidence,
             self.config,
             run.run_id,
             "reviewer",
-            ReviewDecision.REJECT,
+            ReviewDecision.APPROVE,
         )
 
         self.assertEqual(
             self.repo.get_run(run.run_id).state,
-            RunState.REJECTED,
+            RunState.APPROVED,
         )
         self.assertTrue(snapshot["site_summaries"])
         self.assertTrue(snapshot["module_summaries"])

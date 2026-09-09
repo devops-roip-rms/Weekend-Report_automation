@@ -1,5 +1,5 @@
 .python_gate:
-  image: cr.io:5000/weekend-report-ci:python314
+  image: weekend-report-ci:python314
 
 config-validation:
   extends: .python_gate
@@ -47,7 +47,7 @@ postgres-concurrency:
   stage: quality
   needs: [config-validation]
   services:
-    - name: cr.io:5000/postgres-16-alpine
+    - name: postgres-16-alpine
       alias: postgres
   variables:
     POSTGRES_DB: weekend_report_ci_test
@@ -66,7 +66,7 @@ safe-e2e:
     - python scripts/ci.py e2e
 
 docker-compose-validate:
-  image: cr.io:5000/weekend-report-ci:python314
+  image: weekend-report-ci:python314
   stage: quality
   needs: [config-validation]
   script:
