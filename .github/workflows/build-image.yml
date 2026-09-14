@@ -34,7 +34,19 @@ jobs:
         shell: bash
         run: bash .github/scripts/derive-build-identity.sh
 
-      - uses: docker/setup-buildx-action@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: docker
+
+      - name: Build runtime base image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile.runtime-base
+          load: true
+          push: false
+          tags: weekend-report-runtime-base:python314
 
       - name: Build image only after all pre-image gates pass
         uses: docker/build-push-action@v7
@@ -49,8 +61,6 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             io.weekend-report.build-id=${{ steps.identity.outputs.build_id }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Record exact built image ID
         shell: bash
