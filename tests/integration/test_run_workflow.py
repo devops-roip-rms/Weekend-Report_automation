@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from app.database.repository import Repository
-from app.domain import NoteScope, ReviewDecision, ReviewNote, RunState
+from app.domain import (
+    ManualDBReview,
+    ManualDBReviewResult,
+    NoteScope,
+    ReviewDecision,
+    ReviewNote,
+    RunState,
+)
 from app.evidence.manager import EvidenceManager
 from app.orchestrator.lock import DuplicateActiveRun
 from app.orchestrator.run_context import RunContext
 from app.orchestrator.runner import OrchestratorRunner
 from app.reporting.html import render_final_html
 from app.reporting.snapshot import finalize_run
-from app.review.finalization import FinalizationReadinessError
+from app.review.manual_db import record_manual_db_review
 from tests.fixtures.config_factory import load_fixture_config
 
 
@@ -31,6 +39,29 @@ class RunWorkflowTests(unittest.TestCase):
         config = copy.deepcopy(self.config)
         config["rules"]["review"]["approval_status_policy"]["FAIL"] = "REQUIRE_NOTE"
         return config
+
+    def save_manual_db_result(
+        self,
+        run_id: str,
+        result: ManualDBReviewResult,
+    ) -> None:
+        record_manual_db_review(
+            self.repo,
+            ManualDBReview(
+                run_id=run_id,
+                display_name="Database Synchronization Check",
+                script_path=(
+                    "C:\\Scripts\\DatabaseSync\\"
+                    "database_sync_check.ps1"
+                ),
+                result=result,
+                comment=(
+                    "Database synchronization manual check "
+                    f"recorded as {result.value}."
+                ),
+                reviewer="reviewer",
+            ),
+        )
 
     def save_required_approval_notes(self, run_id: str) -> None:
         self.repo.save_note(
@@ -93,27 +124,111 @@ class RunWorkflowTests(unittest.TestCase):
             ReviewNote(run.run_id, NoteScope.RESULT, "reviewer", "result note", result_id=result.id)
         )
         self.save_required_approval_notes(run.run_id)
-        with self.assertRaises(FinalizationReadinessError):
-            finalize_run(
-                self.repo,
-                self.evidence,
-                self.config,
-                run.run_id,
-                "reviewer",
-                ReviewDecision.APPROVE,
-            )
+        self.save_manual_db_result(
+            run.run_id,
+            ManualDBReviewResult.PASS,
+        )
+        saved_manual_db = self.repo.get_manual_db_review(
+            run.run_id
+        )
+        self.assertIsNotNone(saved_manual_db)
+        assert saved_manual_db is not None
         snapshot = finalize_run(
             self.repo,
             self.evidence,
             self.config,
             run.run_id,
             "reviewer",
-            ReviewDecision.REJECT,
+            ReviewDecision.APPROVE,
         )
-
+        manual_db_snapshot = snapshot[
+            "manual_db_review"
+        ]
+        self.assertIsNotNone(manual_db_snapshot)
+        self.assertEqual(
+            manual_db_snapshot["display_name"],
+            saved_manual_db.display_name,
+        )
+        self.assertEqual(
+            manual_db_snapshot["script_path"],
+            saved_manual_db.script_path,
+        )
+        self.assertEqual(
+            manual_db_snapshot["execution_method"],
+            "Performed locally by reviewer",
+        )
+        self.assertEqual(
+            manual_db_snapshot["result"],
+            "PASS",
+        )
+        self.assertEqual(
+            manual_db_snapshot["comment"],
+            saved_manual_db.comment,
+        )
+        self.assertEqual(
+            manual_db_snapshot["reviewer"],
+            saved_manual_db.reviewer,
+        )
+        self.assertEqual(
+            manual_db_snapshot["reviewed_at"],
+            saved_manual_db.reviewed_at,
+        )
+        self.assertEqual(
+            manual_db_snapshot["final_decision"],
+            "APPROVE",
+        )
+        self.assertEqual(
+            snapshot["snapshot_version"],
+            2,
+        )
+        final_run = self.repo.get_run(
+            run.run_id
+        )
+        self.assertIsNotNone(
+            final_run.final_snapshot_path
+        )
+        assert final_run.final_snapshot_path is not None
+        frozen_snapshot_path = (
+            self.evidence.root
+            / final_run.final_snapshot_path
+        )
+        frozen_snapshot = json.loads(
+            frozen_snapshot_path.read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            frozen_snapshot["manual_db_review"],
+            snapshot["manual_db_review"],
+        )
+        self.assertEqual(
+            frozen_snapshot["manual_db_review"][
+                "final_decision"
+            ],
+            "APPROVE",
+        )
+        self.assertIsNotNone(final_run.final_pdf_path)
+        assert final_run.final_pdf_path is not None
+        pdf_path = (
+            self.evidence.root
+            / final_run.final_pdf_path
+        )
+        pdf_data = pdf_path.read_bytes()
+        self.assertIn(
+            b"Manual Database Synchronization Check",
+            pdf_data,
+        )
+        self.assertIn(
+            b"Result: PASS",
+            pdf_data,
+        )
+        self.assertIn(
+            b"Database synchronization",
+            pdf_data,
+        )
         self.assertEqual(
             self.repo.get_run(run.run_id).state,
-            RunState.REJECTED,
+            RunState.APPROVED,
         )
         self.assertTrue(snapshot["site_summaries"])
         self.assertTrue(snapshot["module_summaries"])
@@ -142,10 +257,29 @@ class RunWorkflowTests(unittest.TestCase):
         )
         self.repo.claim_next_run("worker-a")
         OrchestratorRunner().run(RunContext(run.run_id, self.config, self.repo, self.evidence))
-        finalize_run(
-            self.repo, self.evidence, self.config, run.run_id, "reviewer", ReviewDecision.REJECT
+        self.save_manual_db_result(
+            run.run_id,
+            ManualDBReviewResult.FAIL,
+        )
+        snapshot = finalize_run(
+            self.repo,
+            self.evidence,
+            self.config,
+            run.run_id,
+            "reviewer",
+            ReviewDecision.REJECT,
         )
         self.assertEqual(self.repo.get_run(run.run_id).state, RunState.REJECTED)
+        self.assertEqual(
+            snapshot["manual_db_review"]["result"],
+            "FAIL",
+        )
+        self.assertEqual(
+            snapshot["manual_db_review"][
+                "final_decision"
+            ],
+            "REJECT",
+        )
 
     def test_pdf_failure_preserves_snapshot(self):
         run = self.repo.create_run(
@@ -157,6 +291,10 @@ class RunWorkflowTests(unittest.TestCase):
         OrchestratorRunner().run(RunContext(run.run_id, self.config, self.repo, self.evidence))
         self.save_required_approval_notes(run.run_id)
         with self.assertRaises(RuntimeError):
+            self.save_manual_db_result(
+                run.run_id,
+                ManualDBReviewResult.FAIL,
+            )
             finalize_run(
                 self.repo,
                 self.evidence,

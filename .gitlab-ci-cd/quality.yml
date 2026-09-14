@@ -47,7 +47,7 @@ postgres-concurrency:
   stage: quality
   needs: [config-validation]
   services:
-    - name: postgres-16-alpine
+    - name: postgres:16-alpine
       alias: postgres
   variables:
     POSTGRES_DB: weekend_report_ci_test

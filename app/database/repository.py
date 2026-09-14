@@ -13,6 +13,8 @@ from app.domain import (
     CheckResult,
     CheckStatus,
     EvidenceRecord,
+    ManualDBReview,
+    ManualDBReviewResult,
     ReviewNote,
     RunRecord,
     RunState,
@@ -432,10 +434,10 @@ class Repository:
             SELECT id, created_at
             FROM review_notes
             WHERE run_id=?
-              AND scope=?
-              AND COALESCE(module,'')=COALESCE(?, '')
-              AND COALESCE(result_id,-1)=COALESCE(?, -1)
-              AND COALESCE(dashboard_id,'')=COALESCE(?, '')
+            AND scope=?
+            AND COALESCE(module,'')=COALESCE(?, '')
+            AND COALESCE(result_id,-1)=COALESCE(?, -1)
+            AND COALESCE(dashboard_id,'')=COALESCE(?, '')
             """,
             (note.run_id, note.scope.value, note.module, note.result_id, note.dashboard_id),
         ).fetchone()
@@ -465,6 +467,90 @@ class Repository:
                 now,
             ),
         )
+
+    def save_manual_db_review(self, review: ManualDBReview) -> int:
+        now = iso_now()
+        state_lock = " FOR UPDATE" if self.backend == "postgres" else ""
+
+        with self.transaction():
+            run_row = self._execute(
+                "SELECT state FROM runs WHERE run_id=?" + state_lock,
+                (review.run_id,),
+            ).fetchone()
+
+            if not run_row:
+                raise KeyError(review.run_id)
+
+            state = RunState(run_row["state"])
+
+            if state != RunState.REVIEW_READY:
+                raise InvalidRunTransition(
+                    "manual DB review may be edited only in REVIEW_READY; "
+                    f"got {state.value}"
+                )
+
+            self._execute(
+                """
+                INSERT INTO manual_db_reviews(
+                    run_id,
+                    display_name,
+                    script_path,
+                    result,
+                    comment,
+                    reviewer,
+                    reviewed_at
+                )
+                VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(run_id) DO UPDATE SET
+                    display_name=excluded.display_name,
+                    script_path=excluded.script_path,
+                    result=excluded.result,
+                    comment=excluded.comment,
+                    reviewer=excluded.reviewer,
+                    reviewed_at=excluded.reviewed_at
+                """,
+                (
+                    review.run_id,
+                    review.display_name.strip(),
+                    review.script_path.strip(),
+                    review.result.value,
+                    review.comment.strip(),
+                    review.reviewer.strip(),
+                    now,
+                ),
+            )
+
+            saved = self._execute(
+                """
+                SELECT id
+                FROM manual_db_reviews
+                WHERE run_id=?
+                """,
+                (review.run_id,),
+            ).fetchone()
+
+            if not saved:
+                raise RuntimeError(
+                    "manual DB review upsert did not return a persisted row"
+                )
+
+            return int(saved["id"])
+
+    def get_manual_db_review(
+        self,
+        run_id: str,
+    ) -> ManualDBReview | None:
+        row = self._execute(
+            """
+            SELECT *
+            FROM manual_db_reviews
+            WHERE run_id=?
+            """,
+            (run_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return _manual_db_review_from_row(row)
 
     def get_run(self, run_id: str) -> RunRecord:
         row = self._execute("SELECT * FROM runs WHERE run_id=?", (run_id,)).fetchone()
@@ -596,6 +682,23 @@ def _json_loads(value: Any) -> Any:
         return json.loads(value)
     return value
 
+def _manual_db_review_from_row(
+    row: Mapping[str, Any],
+) -> ManualDBReview:
+    return ManualDBReview(
+        run_id=row["run_id"],
+        display_name=row["display_name"],
+        script_path=row["script_path"],
+        result=ManualDBReviewResult(row["result"]),
+        comment=row["comment"],
+        reviewer=row["reviewer"],
+        reviewed_at=(
+            str(row["reviewed_at"])
+            if row["reviewed_at"]
+            else None
+        ),
+        id=int(row["id"]),
+    )
 
 def _run_from_row(row: Mapping[str, Any]) -> RunRecord:
     status = CheckStatus(row["automation_status"]) if row["automation_status"] else None

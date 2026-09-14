@@ -6,11 +6,20 @@ import unittest
 from pathlib import Path
 
 from app.database.repository import Repository
-from app.domain import CheckResult, CheckStatus, NoteScope, ReviewDecision, ReviewNote
+from app.domain import (
+    CheckResult,
+    CheckStatus,
+    ManualDBReview,
+    ManualDBReviewResult,
+    NoteScope,
+    ReviewDecision,
+    ReviewNote,
+)
 from app.evidence.manager import EvidenceManager
 from app.orchestrator.aggregation import aggregate_status
 from app.orchestrator.run_context import RunContext
 from app.review.finalization import validate_finalization_readiness
+from app.review.manual_db import record_manual_db_review
 from app.validators.doctor import DoctorValidator
 from app.validators.site_parity import SiteParityValidator
 from tests.fixtures.config_factory import load_fixture_config
@@ -192,6 +201,20 @@ class DoctorTests(unittest.TestCase):
             config,
             run_id,
             ReviewDecision.APPROVE,
+        )
+        record_manual_db_review(
+            self.repo,
+            ManualDBReview(
+                run_id=run_id,
+                display_name="Database Synchronization Check",
+                script_path=(
+                    "C:\\Scripts\\DatabaseSync\\"
+                    "database_sync_check.ps1"
+                ),
+                result=ManualDBReviewResult.PASS,
+                comment="Database synchronization verified.",
+                reviewer="reviewer",
+            ),
         )
         self.assertTrue(any("MANUAL_REVIEW" in error for error in errors))
         self.assertTrue(any("ERROR" in error and "blocked" in error for error in errors))

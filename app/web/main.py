@@ -13,6 +13,7 @@ from app.api import (
     routes_auth,
     routes_evidence,
     routes_health,
+    routes_manual_db,
     routes_notes,
     routes_reports,
     routes_review,
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_runs.router)
     app.include_router(routes_review.router)
     app.include_router(routes_notes.router)
+    app.include_router(routes_manual_db.router)
     app.include_router(routes_evidence.router)
     app.include_router(routes_reports.router)
 

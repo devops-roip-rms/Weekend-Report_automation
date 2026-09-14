@@ -3,7 +3,14 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from app.domain import CheckResult, CheckStatus, NoteScope, ReviewDecision, ReviewNote
+from app.domain import (
+    CheckResult,
+    CheckStatus,
+    ManualDBReviewResult,
+    NoteScope,
+    ReviewDecision,
+    ReviewNote,
+)
 from app.orchestrator.execution_plan import build_execution_plan
 
 
@@ -19,15 +26,51 @@ def validate_finalization_readiness(
     run_id: str,
     decision: ReviewDecision,
 ) -> list[str]:
+    errors: list[str] = []
+
+    errors.extend(
+        _manual_db_review_errors(
+            repository,
+            config,
+            run_id,
+            decision,
+        )
+    )
+
     if decision == ReviewDecision.REJECT:
-        return _reject_errors(config)
+        errors.extend(_reject_errors(config))
+        return errors
+
     results = repository.list_results(run_id)
     notes = repository.list_notes(run_id)
-    errors: list[str] = []
-    errors.extend(_required_module_completion_errors(config, results))
-    errors.extend(_splunk_review_errors(config, notes))
-    errors.extend(_required_note_errors(config, results, notes))
-    errors.extend(_approval_status_policy_errors(config, results, notes))
+
+    errors.extend(
+        _required_module_completion_errors(
+            config,
+            results,
+        )
+    )
+    errors.extend(
+        _splunk_review_errors(
+            config,
+            notes,
+        )
+    )
+    errors.extend(
+        _required_note_errors(
+            config,
+            results,
+            notes,
+        )
+    )
+    errors.extend(
+        _approval_status_policy_errors(
+            config,
+            results,
+            notes,
+        )
+    )
+
     return errors
 
 
@@ -41,6 +84,73 @@ def enforce_finalization_readiness(
     if errors:
         raise FinalizationReadinessError(errors)
 
+def _manual_db_review_errors(
+    repository,
+    config: dict[str, Any],
+    run_id: str,
+    decision: ReviewDecision,
+) -> list[str]:
+    manual_config = config.get(
+        "manual_db_check",
+        {},
+    )
+
+    if not isinstance(manual_config, dict):
+        return []
+
+    if manual_config.get("enabled") is not True:
+        return []
+
+    if manual_config.get("required") is not True:
+        return []
+
+    review = repository.get_manual_db_review(
+        run_id
+    )
+
+    if review is None:
+        return [
+            "Manual Database Synchronization Check "
+            "must be completed before finalization."
+        ]
+
+    if not review.comment.strip():
+        return [
+            "Manual Database Synchronization Check "
+            "requires a non-empty comment before finalization."
+        ]
+
+    if decision == ReviewDecision.APPROVE:
+        if review.result != ManualDBReviewResult.PASS:
+            return [
+                "APPROVE requires Manual Database "
+                "Synchronization Check result PASS; "
+                f"current result is {review.result.value}."
+            ]
+
+        return []
+
+    if decision == ReviewDecision.REJECT:
+        if review.result == ManualDBReviewResult.PASS:
+            return [
+                "REJECT is not permitted when Manual Database "
+                "Synchronization Check result is PASS."
+            ]
+
+        if review.result in {
+            ManualDBReviewResult.FAIL,
+            ManualDBReviewResult.NOT_RUN,
+        }:
+            return []
+
+        return [
+            "REJECT requires Manual Database Synchronization "
+            "Check result FAIL or NOT RUN."
+        ]
+
+    return [
+        "Unsupported final review decision."
+    ]
 
 def _review_config(config: dict[str, Any]) -> dict[str, Any]:
     review = config.get("rules", {}).get("review", {})

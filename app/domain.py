@@ -36,6 +36,10 @@ class ReviewDecision(StrEnum):
     APPROVE = "APPROVE"
     REJECT = "REJECT"
 
+class ManualDBReviewResult(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    NOT_RUN = "NOT RUN"
 
 class DistributionStatus(StrEnum):
     NOT_CONFIGURED = "NOT_CONFIGURED"
@@ -60,7 +64,6 @@ MODULES = [
     "rabbitmq",
     "recording",
     "infrastructure",
-    "database",
     "splunk",
 ]
 
@@ -135,6 +138,16 @@ class ReviewNote:
     created_at: str | None = None
     updated_at: str | None = None
 
+@dataclass(slots=True)
+class ManualDBReview:
+    run_id: str
+    display_name: str
+    script_path: str
+    result: ManualDBReviewResult
+    comment: str
+    reviewer: str
+    reviewed_at: str | None = None
+    id: int | None = None
 
 @dataclass(slots=True)
 class SiteSummary:

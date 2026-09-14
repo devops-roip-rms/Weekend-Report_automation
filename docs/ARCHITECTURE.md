@@ -215,24 +215,7 @@ High-level flow:
 
 Crash/unknown state after a state-changing action requires `RECOVERY_REQUIRED`.
 
-### 7.4 Database
-
-The database module is an adapter around the owner-supplied existing PowerShell synchronization script.
-
-The current script boundary is `scripts/database/database_sync_check.ps1`. If the script is empty or the runtime/result contract is not verified, production execution remains blocked.
-
-Expected structured outcomes include:
-
-- create success;
-- replication after create;
-- delete success;
-- replication after delete;
-- cleanup complete;
-- errors.
-
-The Weekend Report project does not silently replace the existing temp-table algorithm.
-
-### 7.5 Infrastructure
+### 7.4 Infrastructure
 
 Infrastructure collection is read-only.
 
@@ -243,13 +226,13 @@ Validation covers:
 - filesystem existence/utilization;
 - Chrony synchronization/source/offset.
 
-### 7.6 DOCTOR
+### 7.5 DOCTOR
 
 DOCTOR API mode uses dynamic service discovery per site. Discovered services are validated independently for health and the two site service sets are compared for parity.
 
 API mode requires a verified endpoint/schema/auth/validation contract. Reviewable service-health issues remain service-level `ERROR` findings and roll the module to `MANUAL_REVIEW`; transport/API/authentication/timeout/schema/collection errors remain blocking `ERROR`s.
 
-### 7.7 Splunk
+### 7.6 Splunk
 
 Splunk is a manual dashboard-review area.
 

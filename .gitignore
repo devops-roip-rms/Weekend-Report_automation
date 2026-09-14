@@ -26,3 +26,4 @@ deploy/docker/tls/
 deploy/docker/.env
 deploy/docker/env/*.env
 !deploy/docker/env/*.env.example
+deploy/docker/images/

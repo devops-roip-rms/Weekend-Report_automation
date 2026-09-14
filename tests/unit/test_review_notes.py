@@ -137,6 +137,20 @@ class ReviewNoteApiTests(unittest.TestCase):
             headers={"X-Reviewer": "alice"},
         )
 
+        manual_db = self.client.put(
+            f"/api/runs/{run_id}/manual-db-review",
+            json={
+                "result": "PASS",
+                "comment": "Database synchronization verified.",
+            },
+            headers={"X-Reviewer": "alice"},
+        )
+        self.assertEqual(
+            manual_db.status_code,
+            200,
+            manual_db.text,
+        )
+
         page = self.client.get(f"/runs/{run_id}/review")
         self.assertEqual(page.status_code, 200)
         html = page.text
@@ -253,6 +267,34 @@ class ReviewNoteApiTests(unittest.TestCase):
             token = self.extract_csrf(page.text)
             mutation_headers = {**headers, "X-CSRF-Token": token}
 
+            # Manual DB review mutation must require CSRF in production.
+            no_csrf = self.client.put(
+                f"/api/runs/{run_id}/manual-db-review",
+                json={
+                    "result": "PASS",
+                    "comment": "must not save",
+                },
+                headers=headers,
+            )
+            self.assertNotEqual(
+                no_csrf.status_code,
+                200,
+            )
+            # The same request succeeds with the authenticated
+            # reviewer's valid CSRF token.
+            manual_db = self.client.put(
+                f"/api/runs/{run_id}/manual-db-review",
+                json={
+                    "result": "PASS",
+                    "comment": "Production DB review passed.",
+                },
+                headers=mutation_headers,
+            )
+            self.assertEqual(
+                manual_db.status_code,
+                200,
+                manual_db.text,
+            )
             self.assertEqual(
                 self.client.put(
                     f"/api/runs/{run_id}/notes/module/portainer",
@@ -309,10 +351,27 @@ class ReviewNoteApiTests(unittest.TestCase):
             reject_run_id = self.make_review_ready_run("WR-20260811-000101")
             reject_page = self.client.get(f"/runs/{reject_run_id}/review", headers=headers)
             reject_token = self.extract_csrf(reject_page.text)
+            reject_headers = {
+                **headers,
+                "X-CSRF-Token": reject_token,
+            }
+            manual_db_reject = self.client.put(
+                f"/api/runs/{reject_run_id}/manual-db-review",
+                json={
+                    "result": "FAIL",
+                    "comment": "Database synchronization failed.",
+                },
+                headers=reject_headers,
+            )
+            self.assertEqual(
+                manual_db_reject.status_code,
+                200,
+                manual_db_reject.text,
+            )
             reject = self.client.post(
                 f"/api/runs/{reject_run_id}/finalize",
                 json={"decision": "REJECT"},
-                headers={**headers, "X-CSRF-Token": reject_token},
+                headers=reject_headers,
             )
             self.assertEqual(reject.status_code, 200, reject.text)
             self.assertEqual(self.repo.get_run(reject_run_id).state, RunState.REJECTED)
@@ -351,6 +410,160 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.assertIsNotNone(match, html)
         assert match is not None
         return match.group(1)
+
+    def test_manual_db_review_api_persists_server_controlled_values(self):
+        run_id = self.make_review_ready_run(
+            "WR-20260909-000400"
+        )
+        response = self.client.put(
+            f"/api/runs/{run_id}/manual-db-review",
+            json={
+                "result": "PASS",
+                "comment": "Synchronization verified.",
+                "reviewer": "mallory",
+                "script_path": "C:\\Fake\\evil.ps1",
+                "display_name": "Fake Check",
+                "reviewed_at": "1900-01-01T00:00:00Z",
+            },
+            headers={"X-Reviewer": "alice"},
+        )
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.text,
+        )
+        saved = self.repo.get_manual_db_review(run_id)
+        self.assertIsNotNone(saved)
+        assert saved is not None
+        self.assertEqual(saved.reviewer, "alice")
+        self.assertEqual(
+            saved.display_name,
+            "Database Synchronization Check",
+        )
+        self.assertEqual(
+            saved.script_path,
+            (
+                "C:\\Scripts\\DatabaseSync\\"
+                "database_sync_check.ps1"
+            ),
+        )
+        self.assertEqual(
+            saved.comment,
+            "Synchronization verified.",
+        )
+
+    def test_manual_db_review_requires_result_and_comment(self):
+        run_id = self.make_review_ready_run(
+            "WR-20260909-000401"
+        )
+        missing_result = self.client.put(
+            f"/api/runs/{run_id}/manual-db-review",
+            json={"comment": "test"},
+            headers={"X-Reviewer": "alice"},
+        )
+        self.assertEqual(
+            missing_result.status_code,
+            400,
+        )
+        blank_comment = self.client.put(
+            f"/api/runs/{run_id}/manual-db-review",
+            json={
+                "result": "PASS",
+                "comment": "   ",
+            },
+            headers={"X-Reviewer": "alice"},
+        )
+        self.assertEqual(
+            blank_comment.status_code,
+            400,
+        )
+
+    def test_manual_db_review_is_blocked_before_review_ready(self):
+        run_id = "WR-20260909-000402"
+        self.repo.create_run(
+            started_by="tester",
+            run_id=run_id,
+        )
+        response = self.client.put(
+            f"/api/runs/{run_id}/manual-db-review",
+            json={
+                "result": "PASS",
+                "comment": "too early",
+            },
+            headers={"X-Reviewer": "alice"},
+        )
+        self.assertEqual(
+            response.status_code,
+            409,
+        )
+
+    def test_review_page_shows_manual_db_check(self):
+        run_id = self.make_review_ready_run(
+            "WR-20260909-000403"
+        )
+        page = self.client.get(
+            f"/runs/{run_id}/review"
+        )
+        self.assertEqual(
+            page.status_code,
+            200,
+            page.text,
+        )
+        html = page.text
+        self.assertIn(
+            "Database Synchronization Check",
+            html,
+        )
+        self.assertIn(
+            "C:\\Scripts\\DatabaseSync\\database_sync_check.ps1",
+            html,
+        )
+        self.assertIn(
+            "Copy PowerShell Command",
+            html,
+        )
+        self.assertIn(
+            'value="PASS"',
+            html,
+        )
+        self.assertIn(
+            'value="FAIL"',
+            html,
+        )
+        self.assertIn(
+            'value="NOT RUN"',
+            html,
+        )
+        self.assertIn(
+            "DB check comment — required",
+            html,
+        )
+
+    def test_review_page_loads_saved_manual_db_review(self):
+        run_id = self.make_review_ready_run(
+            "WR-20260909-000404"
+        )
+        response = self.client.put(
+            f"/api/runs/{run_id}/manual-db-review",
+            json={
+                "result": "FAIL",
+                "comment": "Site 2 did not synchronize.",
+            },
+            headers={"X-Reviewer": "alice"},
+        )
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.text,
+        )
+        page = self.client.get(
+            f"/runs/{run_id}/review"
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(
+            "Site 2 did not synchronize.",
+            page.text,
+        )
 
 
 if __name__ == "__main__":

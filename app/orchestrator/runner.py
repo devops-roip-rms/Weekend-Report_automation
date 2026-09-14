@@ -3,7 +3,6 @@ from __future__ import annotations
 import traceback
 from typing import Any
 
-from app.collectors.database import DatabaseCollector
 from app.collectors.doctor import DoctorCollector
 from app.collectors.infrastructure import InfrastructureCollector
 from app.collectors.portainer import PortainerCollector
@@ -14,7 +13,6 @@ from app.orchestrator.aggregation import aggregate_status
 from app.orchestrator.execution_plan import build_execution_plan
 from app.orchestrator.run_context import RunContext
 from app.time_utils import iso_now
-from app.validators.database import DatabaseValidator
 from app.validators.doctor import DoctorValidator
 from app.validators.infrastructure import InfrastructureValidator
 from app.validators.portainer import PortainerValidator
@@ -28,7 +26,6 @@ COLLECTORS: dict[str, Any] = {
     "rabbitmq": RabbitMQCollector,
     "recording": RecordingCollector,
     "infrastructure": InfrastructureCollector,
-    "database": DatabaseCollector,
 }
 
 VALIDATORS: dict[str, Any] = {
@@ -37,7 +34,6 @@ VALIDATORS: dict[str, Any] = {
     "rabbitmq": RabbitMQValidator,
     "recording": RecordingValidator,
     "infrastructure": InfrastructureValidator,
-    "database": DatabaseValidator,
 }
 
 

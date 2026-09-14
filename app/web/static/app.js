@@ -89,6 +89,88 @@
     return notes.length;
   }
 
+  function selectedManualDbResult() {
+    return document.querySelector(
+      "input[name='manual-db-result']:checked"
+    );
+  }
+  async function saveManualDbReview() {
+    const panel = document.querySelector(
+      "[data-manual-db-review]"
+    );
+    if (!panel) {
+      return null;
+    }
+    const runId = panel.dataset.runId;
+    const selected = selectedManualDbResult();
+    const comment =
+      panel.querySelector("[data-manual-db-comment]")?.value || "";
+    if (!selected) {
+      throw new Error(
+        "Select PASS, FAIL, or NOT RUN for the manual DB check."
+      );
+    }
+    if (!comment.trim()) {
+      throw new Error(
+        "A comment is required for the manual DB check."
+      );
+    }
+    const response = await fetch(
+      `/api/runs/${runId}/manual-db-review`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...csrfHeaders(),
+        },
+        body: JSON.stringify({
+          result: selected.value,
+          comment,
+        }),
+      }
+    );
+    if (!response.ok) {
+      const body = await readError(response);
+      throw new Error(
+        `manual DB review failed: ${response.status} ${body}`
+      );
+    }
+
+    return response.json();
+  }
+  async function copyManualDbCommand() {
+    const command =
+      document.querySelector("[data-manual-db-command]")
+        ?.textContent
+        ?.trim();
+    if (!command) {
+      throw new Error(
+        "PowerShell command is not available."
+      );
+    }
+    if (
+      navigator.clipboard &&
+      window.isSecureContext
+    ) {
+      await navigator.clipboard.writeText(command);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = command;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) {
+      throw new Error(
+        "Unable to copy the PowerShell command."
+      );
+    }
+  }
+
   function selectedDecision() {
     return document.querySelector("input[name='review-decision']:checked");
   }
@@ -232,6 +314,55 @@
         const count = await saveAllNotes();
         setStatus(`${count} note field${count === 1 ? "" : "s"} saved.`, "success");
         notify("Notes saved.", "success");
+      } else if (button.dataset.action === "save-notes") {
+        button.disabled = true;
+        const count = await saveAllNotes();
+        setStatus(`${count} note field${count === 1 ? "" : "s"} saved.`, "success");
+        notify("Notes saved.", "success");
+      } else if (button.dataset.action === "copy-manual-db-command") {
+        await copyManualDbCommand();
+        setStatus(
+          "PowerShell command copied.",
+          "success"
+        );
+        notify(
+          "PowerShell command copied.",
+          "success"
+        );
+      } else if (button.dataset.action === "save-manual-db-review") {
+        button.disabled = true;
+        const result = await saveManualDbReview();
+        const saved = result?.review;
+        const slot = document.querySelector(
+          "[data-manual-db-saved-status]"
+        );
+        if (slot && saved) {
+          slot.textContent =
+            `Saved by ${saved.reviewer} at ${saved.reviewed_at}`;
+        }
+        setStatus(
+          `Manual DB check saved: ${saved.result}.`,
+          "success"
+        );
+        notify(
+          "Manual DB check saved.",
+          "success"
+        );
+      } else if (button.dataset.action === "finalize") {
+        if (!prepareFinalConfirmation(button)) {
+          return;
+        }
+        button.disabled = true;
+        const result = await finalize(button.dataset.runId);
+        exposeFinalPdf(result.final_pdf_url);
+        setStatus(
+          `Final confirmation saved: ${result.decision}.`,
+          "success"
+        );
+        notify(
+          `Final confirmation saved: ${result.decision}.`,
+          "success"
+        );
       } else if (button.dataset.action === "finalize") {
         if (!prepareFinalConfirmation(button)) {
           return;

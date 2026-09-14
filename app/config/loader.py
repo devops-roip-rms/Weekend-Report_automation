@@ -143,8 +143,8 @@ def _deployment_config_from_env(env: Mapping[str, str], rules: dict[str, Any]) -
         "rabbitmq_expected": _load_rabbitmq(env, rules, site_refs),
         "recording": _load_recording(env, rules, site_refs),
         "servers": _load_servers(env, rules, site_refs),
-        "database": _load_database(env, rules),
         "splunk_dashboards": _load_splunk(env, rules),
+        "manual_db_check": _load_manual_db_check(env),
     }
 
 
@@ -361,16 +361,6 @@ def _load_servers(
     }
 
 
-def _load_database(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any]:
-    policy = _mapping_at(rules, "database")
-    return {
-        "collection_mode": _env_string(env, "DATABASE_COLLECTION_MODE", "live"),
-        "adapter": policy.get("adapter", "existing_powershell_script"),
-        "script": copy.deepcopy(policy.get("script", {})),
-        "algorithm": copy.deepcopy(policy.get("algorithm", {})),
-    }
-
-
 def _load_splunk(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any]:
     policy = _mapping_at(rules, "splunk")
     defaults = _mapping_at(policy, "dashboard_defaults")
@@ -397,6 +387,28 @@ def _load_splunk(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any
         "open_all": copy.deepcopy(policy.get("open_all", {"include_optional": True})),
     }
 
+def _load_manual_db_check(env: Mapping[str, str]) -> dict[str, Any]:
+    return {
+        "enabled": _env_bool(
+            env,
+            "WEEKEND_REPORT_DB_MANUAL_CHECK_ENABLED",
+            default=False,
+        ),
+        "display_name": _env_string(
+            env,
+            "WEEKEND_REPORT_DB_MANUAL_CHECK_DISPLAY_NAME",
+            "Database Synchronization Check",
+        ),
+        "script_path": _env_string(
+            env,
+            "WEEKEND_REPORT_DB_MANUAL_CHECK_SCRIPT_PATH",
+        ),
+        "required": _env_bool(
+            env,
+            "WEEKEND_REPORT_DB_MANUAL_CHECK_REQUIRED",
+            default=False,
+        ),
+    }
 
 def _mapping_at(config: dict[str, Any], *parts: str) -> dict[str, Any]:
     current: Any = config

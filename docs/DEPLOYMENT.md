@@ -38,7 +38,7 @@ The production Compose stack uses two images:
 
 ```text
 weekend-report:<version>
-postgres-16-alpine
+postgres:16-alpine
 ```
 
 For an offline server, both images must already be loaded locally.
@@ -117,13 +117,13 @@ The root `TAG` remains the release-version source used by CI/release automation.
 The stack expects:
 
 ```text
-postgres-16-alpine
+postgres:16-alpine
 ```
 
 On a connected build PC:
 
 ```powershell
-docker pull postgres-16-alpine
+docker pull postgres:16-alpine
 ```
 
 If the build PC is offline, load an approved previously transferred copy instead.
@@ -138,7 +138,7 @@ $Version = (Get-Content .\TAG -Raw).Trim()
 docker save `
   -o "weekend-report-runtime_$Version.tar" `
   "weekend-report:$Version" `
-  "postgres-16-alpine"
+  "postgres:16-alpine"
 ```
 
 Generate a checksum:
@@ -329,9 +329,6 @@ DOCTOR
 
 Recording
   live collector is intentionally blocked
-
-Database
-  scripts/database/database_sync_check.ps1 is empty
 ```
 
 If these modules remain enabled/required in `rules.yml`, a complete production run cannot be treated
@@ -560,7 +557,7 @@ SOURCE / BUILD PC ONLY
 
 RUNTIME SERVER
   weekend-report image
-  postgres-16-alpine image
+  postgres:16-alpine image
   compose.yml
   one mode override
   .env

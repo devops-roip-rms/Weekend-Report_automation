@@ -8,9 +8,21 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.api.dependencies import get_config, get_repository, get_reviewer
+from app.api.dependencies import (
+    get_config,
+    get_repository,
+    get_reviewer,
+)
 from app.auth import csrf_token_for_template
-from app.domain import MODULES, STATUS_STRENGTH, CheckResult, CheckStatus, NoteScope, to_jsonable
+from app.domain import (
+    MODULES,
+    STATUS_STRENGTH,
+    CheckResult,
+    CheckStatus,
+    NoteScope,
+    RunState,
+    to_jsonable,
+)
 from app.orchestrator.aggregation import (
     aggregate_status,
 )
@@ -20,7 +32,14 @@ from app.orchestrator.aggregation import (
 from app.orchestrator.aggregation import (
     site_summaries as aggregate_site_summaries,
 )
-from app.review.notes import general_notes_enabled, notes_by_key
+from app.review.manual_db import (
+    build_manual_db_file_uri,
+    build_manual_db_powershell_command,
+)
+from app.review.notes import (
+    general_notes_enabled,
+    notes_by_key,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/web/templates")
@@ -49,12 +68,10 @@ MODULE_NAV = [
     {"id": "rabbitmq", "label": "RabbitMQ"},
     {"id": "recording", "label": "Recording"},
     {"id": "infrastructure", "label": "Infrastructure"},
-    {"id": "database", "label": "Database"},
     {"id": "splunk", "label": "Splunk"},
     {"id": "review", "label": "Review"},
 ]
 MODULE_LABELS = {
-    "database": "Database",
     "doctor": "DOCTOR",
     "infrastructure": "Infrastructure",
     "portainer": "Portainer",
@@ -116,6 +133,47 @@ def _review_context(
     page_results = repo.list_results(run_id, module) if module is not None else all_results
     dashboards = _dashboard_config(config)
 
+    manual_db_config = config.get("manual_db_check", {})
+    manual_db_review = repo.get_manual_db_review(run_id)
+    manual_db_enabled = (
+        isinstance(manual_db_config, dict)
+        and manual_db_config.get("enabled") is True
+    )
+    manual_db_context: dict[str, Any] = {
+        "enabled": manual_db_enabled,
+        "required": False,
+        "display_name": "",
+        "script_path": "",
+        "powershell_command": "",
+        "file_uri": "",
+    }
+    if manual_db_enabled:
+        script_path = str(
+            manual_db_config.get("script_path", "")
+        )
+        manual_db_context.update(
+            {
+                "required": (
+                    manual_db_config.get("required") is True
+                ),
+                "display_name": str(
+                    manual_db_config.get(
+                        "display_name",
+                        "Database Synchronization Check",
+                    )
+                ),
+                "script_path": script_path,
+                "powershell_command": (
+                    build_manual_db_powershell_command(
+                        script_path
+                    )
+                ),
+                "file_uri": build_manual_db_file_uri(
+                    script_path
+                ),
+            }
+        )
+
     context: dict[str, Any] = {
         "request": request,
         "run": run,
@@ -130,6 +188,13 @@ def _review_context(
         "module_nav": MODULE_NAV,
         "module_label": _module_label,
         "recovery": config.get("rules", {}).get("recovery", {}),
+        "manual_db_check": manual_db_context,
+        "manual_db_review": (
+            to_jsonable(manual_db_review)
+            if manual_db_review is not None
+            else None
+        ),
+        "manual_db_editable": (run.state == RunState.REVIEW_READY),
     }
     if module is not None:
         context["module"] = module

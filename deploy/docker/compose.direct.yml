@@ -1,7 +1,6 @@
 services:
   web:
     # Direct-access mode. Authentication settings come from env/app.env.
-    # Set WEEKEND_REPORT_AUTH_PROVIDER=local_login there for this mode.
     command:
       - uvicorn
       - app.web.main:app

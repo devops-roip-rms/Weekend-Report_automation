@@ -68,6 +68,11 @@ def snapshot_to_lines(snapshot: dict[str, Any]) -> list[str]:
     lines.extend(_summary_lines("Module Summaries", snapshot.get("module_summaries", []), "module"))
     lines.extend(_parity_lines(snapshot.get("parity_summaries", [])))
     lines.extend(_result_lines(snapshot.get("results", [])))
+    lines.extend(
+        _manual_db_lines(
+            snapshot.get("manual_db_review")
+        )
+    )
     lines.extend(_note_lines(snapshot.get("notes", [])))
     lines.extend(_splunk_lines(snapshot.get("splunk_dashboards", []), snapshot.get("notes", [])))
     lines.extend(_evidence_lines(snapshot.get("evidence", [])))
@@ -125,6 +130,41 @@ def _result_lines(results: list[dict[str, Any]]) -> list[str]:
         )
     return lines
 
+def _manual_db_lines(
+    review: dict[str, Any] | None,
+) -> list[str]:
+    lines = [
+        "Manual Database Synchronization Check"
+    ]
+
+    if not review:
+        return lines + [
+            "none",
+            "",
+        ]
+
+    lines.extend(
+        [
+            (
+                "Script path: "
+                f"{review.get('script_path')}"
+            ),
+            (
+                "Execution method: "
+                f"{review.get('execution_method')}"
+            ),
+            f"Result: {review.get('result')}",
+            f"Reviewer: {review.get('reviewer')}",
+            (
+                "Timestamp: "
+                f"{review.get('reviewed_at')}"
+            ),
+            f"Comment: {review.get('comment')}",
+            "",
+        ]
+    )
+
+    return lines
 
 def _note_lines(notes: list[dict[str, Any]]) -> list[str]:
     lines = ["Reviewer Notes"]

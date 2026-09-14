@@ -188,6 +188,108 @@ class ConfigValidationTests(unittest.TestCase):
             config_hash("config", effective_config=config),
             config_hash("config", effective_config=policy_changed),
         )
+    def test_manual_db_check_is_loaded_from_env(self):
+        config = load_valid_config()
+        self.assertEqual(
+            config["manual_db_check"],
+            {
+                "enabled": True,
+                "display_name": "Database Synchronization Check",
+                "script_path": (
+                    "C:\\Scripts\\DatabaseSync\\database_sync_check.ps1"
+                ),
+                "required": True,
+            },
+        )
+
+    def test_manual_db_check_rejects_invalid_boolean_env(self):
+        env = valid_env()
+        env["WEEKEND_REPORT_DB_MANUAL_CHECK_ENABLED"] = "maybe"
+        with self.assertRaises(ConfigError):
+            load_config_dir(
+                "deploy/docker/config",
+                env=env,
+            )
+
+    def test_manual_db_check_requires_display_name_when_enabled(self):
+        env = valid_env()
+        env["WEEKEND_REPORT_DB_MANUAL_CHECK_DISPLAY_NAME"] = ""
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertFalse(report.ok)
+        self.assertTrue(
+            any(
+                "manual_db_check.display_name" in line
+                for line in report.lines()
+            )
+        )
+
+    def test_manual_db_check_requires_absolute_ps1_path_when_enabled(self):
+        env = valid_env()
+        env["WEEKEND_REPORT_DB_MANUAL_CHECK_SCRIPT_PATH"] = (
+            "database_sync_check.ps1"
+        )
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertFalse(report.ok)
+        self.assertTrue(
+            any(
+                "manual_db_check.script_path" in line
+                for line in report.lines()
+            )
+        )
+
+    def test_manual_db_check_required_cannot_be_true_when_disabled(self):
+        env = valid_env()
+        env["WEEKEND_REPORT_DB_MANUAL_CHECK_ENABLED"] = "false"
+        env["WEEKEND_REPORT_DB_MANUAL_CHECK_REQUIRED"] = "true"
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertFalse(report.ok)
+        self.assertTrue(
+            any(
+                "manual_db_check.required" in line
+                for line in report.lines()
+            )
+        )
+    def test_manual_db_check_requires_ps1_extension(self):
+        env = valid_env()
+        env["WEEKEND_REPORT_DB_MANUAL_CHECK_SCRIPT_PATH"] = (
+            "C:\\Scripts\\DatabaseSync\\database_sync_check.txt"
+        )
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertFalse(report.ok)
+        self.assertTrue(
+            any(
+                "must reference a .ps1 file" in line
+                for line in report.lines()
+            )
+        )
 
 
 if __name__ == "__main__":
