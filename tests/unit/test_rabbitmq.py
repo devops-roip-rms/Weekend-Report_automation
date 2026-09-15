@@ -1,13 +1,17 @@
-from __future__ import annotations
-
 import copy
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 
-from app.collectors.rabbitmq import RabbitMQCollector
+from app.collectors.rabbitmq import (
+    RabbitMQCollector,
+    RabbitMQError,
+    _client_settings,
+    _known_resource_states,
+)
 from app.database.repository import Repository
 from app.domain import CheckStatus
 from app.evidence.manager import EvidenceManager
@@ -216,6 +220,127 @@ class RabbitMQTests(unittest.TestCase):
         self.assertEqual(
             actual["errors"][0]["code"],
             "RABBITMQ_INVALID_RESPONSE",
+        )
+
+    def test_live_node_resource_metrics_map_to_green(self):
+        states = _known_resource_states(
+            {
+                "fd_used": 799,
+                "fd_total": 1000,
+                "sockets_used": 799,
+                "sockets_total": 1000,
+                "proc_used": 499,
+                "proc_total": 1000,
+                "disk_free": 1_000_000_000,
+                "disk_free_limit": 50_000_000,
+                "disk_free_alarm": False,
+            }
+        )
+        self.assertEqual(
+            states,
+            {
+                "file_descriptors": "green",
+                "socket_descriptors": "green",
+                "erlang_processes": "green",
+                "disk_space": "green",
+            },
+        )
+    def test_live_node_resource_metrics_map_warning_thresholds(self):
+        states = _known_resource_states(
+            {
+                "fd_used": 800,
+                "fd_total": 1000,
+                "sockets_used": 800,
+                "sockets_total": 1000,
+                "proc_used": 500,
+                "proc_total": 1000,
+                "disk_free_alarm": False,
+            }
+        )
+        self.assertEqual(states["file_descriptors"], "yellow")
+        self.assertEqual(states["socket_descriptors"], "yellow")
+        self.assertEqual(states["erlang_processes"], "yellow")
+        self.assertEqual(states["disk_space"], "green")
+    def test_live_node_resource_metrics_map_critical_thresholds(self):
+        states = _known_resource_states(
+            {
+                "fd_used": 950,
+                "fd_total": 1000,
+                "sockets_used": 1000,
+                "sockets_total": 1000,
+                "proc_used": 750,
+                "proc_total": 1000,
+                "disk_free_alarm": True,
+            }
+        )
+        self.assertEqual(states["file_descriptors"], "red")
+        self.assertEqual(states["socket_descriptors"], "red")
+        self.assertEqual(states["erlang_processes"], "red")
+        self.assertEqual(states["disk_space"], "red")
+    def test_disk_space_uses_free_limit_when_alarm_field_is_missing(self):
+        healthy = _known_resource_states(
+            {
+                "disk_free": 1000,
+                "disk_free_limit": 500,
+            }
+        )
+        unhealthy = _known_resource_states(
+            {
+                "disk_free": 499,
+                "disk_free_limit": 500,
+            }
+        )
+        self.assertEqual(healthy["disk_space"], "green")
+        self.assertEqual(unhealthy["disk_space"], "red")
+    def test_missing_live_node_metrics_are_not_fabricated(self):
+        states = _known_resource_states(
+            {
+                "disk_free_alarm": False,
+            }
+        )
+        self.assertNotIn("file_descriptors", states)
+        self.assertNotIn("socket_descriptors", states)
+        self.assertNotIn("erlang_processes", states)
+        self.assertEqual(states["disk_space"], "green")
+    def test_custom_ca_creates_ssl_context(self):
+        connection = {
+            "url": "https://rabbitmq.example.invalid",
+            "user": "monitor",
+            "password": "secret",
+            "tls_verify": "custom_ca",
+            "ca_file": "/app/secrets/rabbitmq-ca.pem",
+            "timeout_seconds": 5,
+            "retry_attempts": 1,
+        }
+        ssl_context = object()
+        with patch(
+            "app.collectors.rabbitmq.ssl.create_default_context",
+            return_value=ssl_context,
+        ) as create_context:
+            settings = _client_settings("site1", connection)
+        self.assertIs(settings.tls_verify, ssl_context)
+        create_context.assert_called_once_with(
+            cafile="/app/secrets/rabbitmq-ca.pem"
+        )
+    def test_tls_verify_false_is_rejected(self):
+        connection = {
+            "url": "https://rabbitmq.example.invalid",
+            "user": "monitor",
+            "password": "secret",
+            "tls_verify": False,
+            "ca_file": "",
+            "timeout_seconds": 5,
+            "retry_attempts": 1,
+        }
+        with self.assertRaises(RabbitMQError) as raised:
+            _client_settings("site1", connection)
+        self.assertEqual(
+            raised.exception.code,
+            "RABBITMQ_CONFIGURATION_ERROR",
+        )
+        self.assertIn(
+            "tls_verify=false",
+            raised.exception.message,
         )
 
 

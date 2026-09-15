@@ -23,7 +23,6 @@ services:
       WEEKEND_REPORT_CONFIG_DIR: /app/config
       WEEKEND_REPORT_EVIDENCE_ROOT: /app/runs
       WEEKEND_REPORT_DATABASE_URL: postgresql://weekend_report:${POSTGRES_PASSWORD}@postgres:5432/weekend_report_ci
-      WEEKEND_REPORT_AUTH_MODE: development
       WEEKEND_REPORT_WORKER_POLL_SECONDS: "0.5"
     volumes:
       - evidence:/app/runs

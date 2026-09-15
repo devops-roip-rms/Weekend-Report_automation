@@ -8,12 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.api.dependencies import (
-    get_config,
-    get_repository,
-    get_reviewer,
-)
-from app.auth import csrf_token_for_template
+from app.api.dependencies import get_config, get_repository
 from app.domain import (
     MODULES,
     STATUS_STRENGTH,
@@ -40,12 +35,12 @@ from app.review.notes import (
     general_notes_enabled,
     notes_by_key,
 )
+from app.security import csrf_token_for_template
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/web/templates")
 RepoDep = Annotated[Any, Depends(get_repository)]
 ConfigDep = Annotated[dict[str, Any], Depends(get_config)]
-ReviewerDep = Annotated[str, Depends(get_reviewer)]
 
 ATTENTION_STATUSES = {
     CheckStatus.WARNING.value,
@@ -115,7 +110,6 @@ def _review_context(
     repo,
     config: dict[str, Any],
     run_id: str,
-    reviewer: str,
     module: str | None = None,
 ) -> dict[str, Any]:
     run = repo.get_run(run_id)
@@ -179,7 +173,7 @@ def _review_context(
         "run": run,
         "notes": notes,
         "notes_by_key": note_lookup,
-        "csrf_token": csrf_token_for_template(reviewer),
+        "csrf_token": csrf_token_for_template(),
         "evidence": evidence,
         "evidence_by_result": evidence_by_result,
         "evidence_by_module": evidence_by_module,
@@ -786,12 +780,11 @@ def run_page(
     request: Request,
     repo: RepoDep,
     config: ConfigDep,
-    reviewer: ReviewerDep,
 ):
     return templates.TemplateResponse(
         request,
         "run.html",
-        _review_context(request, repo, config, run_id, reviewer),
+        _review_context(request, repo, config, run_id),
     )
 
 
@@ -801,12 +794,11 @@ def review_page(
     request: Request,
     repo: RepoDep,
     config: ConfigDep,
-    reviewer: ReviewerDep,
 ):
     return templates.TemplateResponse(
         request,
         "review.html",
-        _review_context(request, repo, config, run_id, reviewer),
+        _review_context(request, repo, config, run_id),
     )
 
 
@@ -817,16 +809,15 @@ def module_page(
     request: Request,
     repo: RepoDep,
     config: ConfigDep,
-    reviewer: ReviewerDep,
 ):
     if module == "splunk":
         return templates.TemplateResponse(
             request,
             "splunk.html",
-            _review_context(request, repo, config, run_id, reviewer, module),
+            _review_context(request, repo, config, run_id, module),
         )
     return templates.TemplateResponse(
         request,
         "module.html",
-        _review_context(request, repo, config, run_id, reviewer, module),
+        _review_context(request, repo, config, run_id, module),
     )

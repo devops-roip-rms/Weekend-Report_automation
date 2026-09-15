@@ -227,9 +227,8 @@ The base file:
 compose.yml
 ```
 
-does not publish the web port by itself.
-
-Use exactly one production override.
+does not publish the web port by itself. Weekend Report does not implement application login or
+user accounts, so choose the access mode based on how the server is exposed on your network.
 
 ### 9.1 Reverse Proxy Mode
 
@@ -239,28 +238,15 @@ Use:
 compose.proxy.yml
 ```
 
-Expected authentication configuration in `env/app.env`:
-
-```text
-WEEKEND_REPORT_AUTH_MODE=production
-WEEKEND_REPORT_AUTH_PROVIDER=trusted_header
-WEEKEND_REPORT_AUTH_TRUSTED_HEADER=X-Authenticated-User
-```
-
 The application is bound to:
 
 ```text
 127.0.0.1:8080
 ```
 
-so the current override expects the reverse proxy to run on the same host.
-
-The proxy must:
-
-- terminate HTTPS;
-- authenticate the user;
-- overwrite/remove client-supplied trusted identity headers;
-- pass the approved identity header to Weekend Report.
+so the current override expects the reverse proxy to run on the same host. The reverse proxy may
+terminate HTTPS and apply any organization-level access controls, but it does not need to inject a
+Weekend Report identity header.
 
 ### 9.2 Direct HTTPS Mode
 
@@ -270,21 +256,11 @@ Use:
 compose.direct.yml
 ```
 
-Expected authentication configuration in `env/app.env`:
-
-```text
-WEEKEND_REPORT_AUTH_MODE=production
-WEEKEND_REPORT_AUTH_PROVIDER=local_login
-WEEKEND_REPORT_LOCAL_USERS_FILE=/app/secrets/local-users.json
-WEEKEND_REPORT_SESSION_SIGNING_KEY=<secret>
-```
-
 Provide:
 
 ```text
 tls/server.crt
 tls/server.key
-secrets/local-users.json
 ```
 
 The direct override publishes:
@@ -293,7 +269,8 @@ The direct override publishes:
 8080:8080
 ```
 
-with TLS handled by the Weekend Report web container.
+with TLS handled by the Weekend Report web container. No application user database or application
+session key is required.
 
 ## 10. Validate Configuration Before Packaging Runtime Files
 
@@ -477,26 +454,23 @@ Confirm at minimum:
 - `web` stays running;
 - `worker` stays running;
 - `/healthz` responds;
-- unauthenticated production access is rejected;
-- the approved reviewer can authenticate;
+- the web UI is reachable only from the intended network path;
+- browser mutations reject missing/invalid CSRF tokens when production CSRF is configured;
+- final confirmation requires a manually entered reviewer name;
 - evidence persists across container restarts;
 - database data persists across container restarts;
 - required integration endpoints are reachable from the worker.
 
-## 16. Reverse Proxy Security Requirement
+## 16. Network Access Security Requirement
 
-For `trusted_header` mode, never expose the Weekend Report application port directly to untrusted
-clients.
+Weekend Report has no application login boundary. Restrict access at the network, host firewall,
+reverse proxy, or other infrastructure layer according to your environment.
 
-The trusted identity header is an authentication boundary.
+Browser state-changing requests are still protected with signed CSRF tokens when
+`WEEKEND_REPORT_CSRF_SIGNING_KEY` is configured. Production preflight requires that key.
 
-The reverse proxy must ensure users cannot choose their own value for:
-
-```text
-X-Authenticated-User
-```
-
-or whichever header is configured.
+The reviewer name is entered manually only when the final report is confirmed; it is not used to
+grant access.
 
 ## 17. Backup
 

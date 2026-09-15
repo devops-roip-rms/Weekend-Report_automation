@@ -189,7 +189,8 @@ def assert_manual_db_final_artifacts(
     assert manual_db["script_path"].endswith("database_sync_check.ps1")
     assert manual_db["execution_method"] == "Performed locally by reviewer"
     assert manual_db["result"] == expected_result
-    assert manual_db["reviewer"] == "ci-reviewer"
+    assert "reviewer" not in manual_db
+    assert snapshot["review"]["reviewer"] == "ci-reviewer"
     assert manual_db["reviewed_at"]
     assert manual_db["comment"]
     assert manual_db["final_decision"] == expected_decision
@@ -213,6 +214,9 @@ def assert_manual_db_final_artifacts(
     assert f"Result: {expected_result}".encode("latin-1") in pdf_bytes
     assert b"Execution method: Performed locally by reviewer" in pdf_bytes
     assert b"Reviewer: ci-reviewer" in pdf_bytes
+    assert pdf_bytes.index(b"Evidence References") < pdf_bytes.index(
+        b"Reviewer Confirmation"
+    )
 
 
 def run_no_review_scenario(

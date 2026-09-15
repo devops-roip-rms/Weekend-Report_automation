@@ -143,6 +143,13 @@ class ReportingTests(unittest.TestCase):
         self.assertIn(b"Execution method: "b"Performed locally by reviewer",data,)
         self.assertIn(b"Result: PASS",data,)
         self.assertIn(b"Reviewer: alice",data,)
+        self.assertIn(b"Reviewer Confirmation", data)
+        self.assertLess(
+            data.index(b"Evidence References"),
+            data.index(b"Reviewer Confirmation"),
+        )
+        self.assertNotIn(b"started_by:", data)
+        self.assertNotIn(b"author:", data)
         self.assertIn(b"Timestamp: "b"2026-08-11T00:00:30Z",data,)
         self.assertIn(b"Comment: "b"Database synchronization verified.",data,)
 

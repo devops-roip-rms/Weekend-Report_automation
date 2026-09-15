@@ -288,8 +288,7 @@
 
     <span data-manual-db-saved-status>
       {% if manual_db_review %}
-        Saved by {{ manual_db_review.reviewer }}
-        at {{ manual_db_review.reviewed_at }}
+        Saved at {{ manual_db_review.reviewed_at }}
       {% else %}
         Not yet saved
       {% endif %}
@@ -313,7 +312,19 @@
     <span>Reviewer notes do not convert FAIL/WARNING/ERROR to PASS.</span>
   </div>
   {% if run.review_decision %}
-    <p class="panel-copy">Decision recorded as {{ run.review_decision }} by {{ run.reviewed_by or "reviewer" }} at {{ run.reviewed_at or "time not recorded" }}.</p>
+    <p class="panel-copy">Decision recorded as {{ run.review_decision }} at {{ run.reviewed_at or "time not recorded" }}.</p>
+  {% else %}
+    <label class="note-field">
+      <span>Reviewer name — required for the final report</span>
+      <input
+        type="text"
+        name="reviewer-name"
+        data-final-reviewer-name
+        maxlength="100"
+        autocomplete="name"
+        required
+      >
+    </label>
   {% endif %}
   <div class="decision-grid" role="radiogroup" aria-label="Final review decision">
     <label class="decision-card approve-card">

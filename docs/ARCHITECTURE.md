@@ -62,13 +62,11 @@ Docker base: python:3.14-slim-bookworm pinned by digest
 
 ## 3. Runtime Security Boundary
 
-- Health endpoints may remain public.
-- In production, main pages, run pages, module/review pages, evidence endpoints, evidence downloads, recovery actions, and final-report access require authenticated/authorized access.
-- Development mode may use local convenience identity.
-- Production rejects arbitrary `X-Reviewer`.
-- The implemented production identity boundary is configurable and supports approved `trusted_header` or `local_login` deployment modes.
-- Browser mutations use reviewer-bound signed CSRF tokens generated with `WEEKEND_REPORT_CSRF_SIGNING_KEY`.
-- One permanent public/shared CSRF token is not supported.
+- Weekend Report does not implement application user login, local accounts, trusted identity headers, or an authorized-reviewer list.
+- Read-only application pages, evidence endpoints, and final-report downloads are reachable without an application login. Network exposure must therefore be controlled by the deployment environment as required.
+- Browser mutations use signed CSRF tokens generated with `WEEKEND_REPORT_CSRF_SIGNING_KEY` when that key is configured. Production preflight requires the key.
+- The reviewer name is not an authenticated identity. It is entered manually only during final confirmation and is written to the reviewer confirmation section at the bottom of the final report.
+- Reviewer notes remain operational review data; they are not identity-bearing authentication records.
 
 ## 4. Run and Worker Model
 

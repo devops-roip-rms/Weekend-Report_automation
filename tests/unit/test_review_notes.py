@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.api import dependencies
 from app.database.repository import Repository
-from app.domain import CheckResult, CheckStatus, RunState
+from app.domain import SYSTEM_ACTOR, CheckResult, CheckStatus, RunState
 from app.evidence.manager import EvidenceManager
 from app.web.main import create_app
 from tests.fixtures.config_factory import load_fixture_config
@@ -20,9 +20,6 @@ from tests.fixtures.config_factory import load_fixture_config
 
 class ReviewNoteApiTests(unittest.TestCase):
     def setUp(self):
-        self.env_patch = patch.dict(os.environ, {"WEEKEND_REPORT_AUTH_MODE": "development"})
-        self.env_patch.start()
-        self.addCleanup(self.env_patch.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = Repository("sqlite:///:memory:")
@@ -57,7 +54,6 @@ class ReviewNoteApiTests(unittest.TestCase):
             self.client.put(
                 f"/api/runs/{run_id}/notes/splunk/{dashboard['id']}",
                 json={"note": f"reviewed {dashboard['id']}", "reviewed": True},
-                headers={"X-Reviewer": "alice"},
             )
 
     def test_notes_are_blocked_before_review_ready(self):
@@ -65,7 +61,6 @@ class ReviewNoteApiTests(unittest.TestCase):
         response = self.client.put(
             "/api/runs/WR-20260811-000000/notes/module/portainer",
             json={"note": "too early"},
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(response.status_code, 409)
 
@@ -77,21 +72,18 @@ class ReviewNoteApiTests(unittest.TestCase):
         bad_module = self.client.put(
             f"/api/runs/{run_id}/notes/module/not_a_module",
             json={"note": "bad"},
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(bad_module.status_code, 400)
 
         wrong_result = self.client.put(
             f"/api/runs/{run_id}/notes/result/{other_result.id}",
             json={"note": "bad"},
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(wrong_result.status_code, 400)
 
         bad_dashboard = self.client.put(
             f"/api/runs/{run_id}/notes/splunk/not_a_dashboard",
             json={"note": "bad"},
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(bad_dashboard.status_code, 400)
 
@@ -108,7 +100,6 @@ class ReviewNoteApiTests(unittest.TestCase):
         response = client.put(
             f"/api/runs/{run_id}/notes/general",
             json={"note": "general"},
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(response.status_code, 400)
 
@@ -118,23 +109,19 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.client.put(
             f"/api/runs/{run_id}/notes/module/portainer",
             json={"note": "module note"},
-            headers={"X-Reviewer": "alice"},
         )
         self.client.put(
             f"/api/runs/{run_id}/notes/result/{result.id}",
             json={"note": "result note"},
-            headers={"X-Reviewer": "alice"},
         )
         self.client.put(
             f"/api/runs/{run_id}/notes/splunk/system_health",
             json={"note": "splunk note", "reviewed": True},
-            headers={"X-Reviewer": "alice"},
         )
         self.save_required_dashboard_notes(run_id)
         self.client.put(
             f"/api/runs/{run_id}/notes/general",
             json={"note": "general note"},
-            headers={"X-Reviewer": "alice"},
         )
 
         manual_db = self.client.put(
@@ -143,7 +130,6 @@ class ReviewNoteApiTests(unittest.TestCase):
                 "result": "PASS",
                 "comment": "Database synchronization verified.",
             },
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(
             manual_db.status_code,
@@ -162,12 +148,10 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.assertIn('value="APPROVE"', html)
         self.assertIn('value="REJECT"', html)
 
-        with patch.dict(os.environ, {"WEEKEND_REPORT_AUTH_MODE": "development"}):
-            final = self.client.post(
-                f"/api/runs/{run_id}/finalize",
-                json={"decision": "APPROVE"},
-                headers={"X-Reviewer": "alice"},
-            )
+        final = self.client.post(
+            f"/api/runs/{run_id}/finalize",
+            json={"decision": "APPROVE", "reviewer": "Alice Operator"},
+        )
         self.assertEqual(final.status_code, 200, final.text)
         self.assertEqual(self.repo.get_run(run_id).state, RunState.APPROVED)
 
@@ -219,7 +203,6 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.client.put(
             f"/api/runs/{run_id}/notes/splunk/system_health",
             json={"note": "dashboard reviewed", "reviewed": True},
-            headers={"X-Reviewer": "alice"},
         )
 
         page = self.client.get(f"/runs/{run_id}/splunk")
@@ -241,6 +224,7 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.assertIn("data-finalize-confirmation", html)
         self.assertIn('value="APPROVE"', html)
         self.assertIn('value="REJECT"', html)
+        self.assertIn("data-final-reviewer-name", html)
         self.assertNotIn("<table", html.lower())
 
     def test_frontend_feedback_uses_toasts_not_browser_alerts(self):
@@ -250,10 +234,6 @@ class ReviewNoteApiTests(unittest.TestCase):
 
     def test_production_html_ui_flow_saves_notes_and_approve_reject(self):
         env = {
-            "WEEKEND_REPORT_AUTH_MODE": "production",
-            "WEEKEND_REPORT_AUTH_PROVIDER": "trusted_header",
-            "WEEKEND_REPORT_AUTH_TRUSTED_HEADER": "X-Authenticated-User",
-            "WEEKEND_REPORT_AUTHORIZED_REVIEWERS": "alice",
             "WEEKEND_REPORT_CSRF_SIGNING_KEY": "test-signing-key",
             "WEEKEND_REPORT_APP_VERSION": "test-version",
             "WEEKEND_REPORT_BUILD_ID": "test-build",
@@ -261,11 +241,10 @@ class ReviewNoteApiTests(unittest.TestCase):
         with patch.dict(os.environ, env):
             run_id = self.make_review_ready_run("WR-20260811-000100")
             result = self.repo.list_results(run_id)[0]
-            headers = {"X-Authenticated-User": "alice"}
-            page = self.client.get(f"/runs/{run_id}/review", headers=headers)
+            page = self.client.get(f"/runs/{run_id}/review")
             self.assertEqual(page.status_code, 200, page.text)
             token = self.extract_csrf(page.text)
-            mutation_headers = {**headers, "X-CSRF-Token": token}
+            mutation_headers = {"X-CSRF-Token": token}
 
             # Manual DB review mutation must require CSRF in production.
             no_csrf = self.client.put(
@@ -274,14 +253,12 @@ class ReviewNoteApiTests(unittest.TestCase):
                     "result": "PASS",
                     "comment": "must not save",
                 },
-                headers=headers,
             )
             self.assertNotEqual(
                 no_csrf.status_code,
                 200,
             )
-            # The same request succeeds with the authenticated
-            # reviewer's valid CSRF token.
+            # The same request succeeds with the page's valid CSRF token.
             manual_db = self.client.put(
                 f"/api/runs/{run_id}/manual-db-review",
                 json={
@@ -334,7 +311,7 @@ class ReviewNoteApiTests(unittest.TestCase):
 
             final = self.client.post(
                 f"/api/runs/{run_id}/finalize",
-                json={"decision": "APPROVE"},
+                json={"decision": "APPROVE", "reviewer": "Alice Operator"},
                 headers=mutation_headers,
             )
             self.assertEqual(final.status_code, 200, final.text)
@@ -342,19 +319,15 @@ class ReviewNoteApiTests(unittest.TestCase):
 
             pdf = self.client.get(
                 final.json()["final_pdf_url"],
-                headers=headers,
             )
             self.assertEqual(pdf.status_code, 200)
             self.assertEqual(pdf.headers["content-type"], "application/pdf")
-            self.assertEqual(self.client.get(final.json()["final_pdf_url"]).status_code, 401)
+            self.assertEqual(self.client.get(final.json()["final_pdf_url"]).status_code, 200)
 
             reject_run_id = self.make_review_ready_run("WR-20260811-000101")
-            reject_page = self.client.get(f"/runs/{reject_run_id}/review", headers=headers)
+            reject_page = self.client.get(f"/runs/{reject_run_id}/review")
             reject_token = self.extract_csrf(reject_page.text)
-            reject_headers = {
-                **headers,
-                "X-CSRF-Token": reject_token,
-            }
+            reject_headers = {"X-CSRF-Token": reject_token}
             manual_db_reject = self.client.put(
                 f"/api/runs/{reject_run_id}/manual-db-review",
                 json={
@@ -370,27 +343,17 @@ class ReviewNoteApiTests(unittest.TestCase):
             )
             reject = self.client.post(
                 f"/api/runs/{reject_run_id}/finalize",
-                json={"decision": "REJECT"},
+                json={"decision": "REJECT", "reviewer": "Alice Operator"},
                 headers=reject_headers,
             )
             self.assertEqual(reject.status_code, 200, reject.text)
             self.assertEqual(self.repo.get_run(reject_run_id).state, RunState.REJECTED)
 
-    def test_production_read_and_final_pdf_require_auth(self):
-        env = {
-            "WEEKEND_REPORT_AUTH_MODE": "production",
-            "WEEKEND_REPORT_AUTH_PROVIDER": "trusted_header",
-            "WEEKEND_REPORT_AUTH_TRUSTED_HEADER": "X-Authenticated-User",
-            "WEEKEND_REPORT_AUTHORIZED_REVIEWERS": "alice",
-            "WEEKEND_REPORT_CSRF_SIGNING_KEY": "test-signing-key",
-            "WEEKEND_REPORT_APP_VERSION": "test-version",
-            "WEEKEND_REPORT_BUILD_ID": "test-build",
-        }
-        with patch.dict(os.environ, env):
-            self.assertEqual(self.client.get("/").status_code, 401)
-            self.assertEqual(self.client.get("/healthz").status_code, 200)
-            run_id = self.make_review_ready_run("WR-20260811-000200")
-            self.assertEqual(self.client.get(f"/api/runs/{run_id}/evidence").status_code, 401)
+    def test_read_routes_do_not_require_login(self):
+        self.assertEqual(self.client.get("/").status_code, 200)
+        self.assertEqual(self.client.get("/healthz").status_code, 200)
+        run_id = self.make_review_ready_run("WR-20260811-000200")
+        self.assertEqual(self.client.get(f"/api/runs/{run_id}/evidence").status_code, 200)
 
     def test_final_pdf_route_rejects_unsafe_recorded_path(self):
         run_id = self.make_review_ready_run("WR-20260811-000300")
@@ -425,7 +388,6 @@ class ReviewNoteApiTests(unittest.TestCase):
                 "display_name": "Fake Check",
                 "reviewed_at": "1900-01-01T00:00:00Z",
             },
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(
             response.status_code,
@@ -435,7 +397,7 @@ class ReviewNoteApiTests(unittest.TestCase):
         saved = self.repo.get_manual_db_review(run_id)
         self.assertIsNotNone(saved)
         assert saved is not None
-        self.assertEqual(saved.reviewer, "alice")
+        self.assertEqual(saved.reviewer, SYSTEM_ACTOR)
         self.assertEqual(
             saved.display_name,
             "Database Synchronization Check",
@@ -459,7 +421,6 @@ class ReviewNoteApiTests(unittest.TestCase):
         missing_result = self.client.put(
             f"/api/runs/{run_id}/manual-db-review",
             json={"comment": "test"},
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(
             missing_result.status_code,
@@ -471,7 +432,6 @@ class ReviewNoteApiTests(unittest.TestCase):
                 "result": "PASS",
                 "comment": "   ",
             },
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(
             blank_comment.status_code,
@@ -490,7 +450,6 @@ class ReviewNoteApiTests(unittest.TestCase):
                 "result": "PASS",
                 "comment": "too early",
             },
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(
             response.status_code,
@@ -549,7 +508,6 @@ class ReviewNoteApiTests(unittest.TestCase):
                 "result": "FAIL",
                 "comment": "Site 2 did not synchronize.",
             },
-            headers={"X-Reviewer": "alice"},
         )
         self.assertEqual(
             response.status_code,

@@ -96,7 +96,7 @@ rabbitmq:
       total: 0
     recheck:
       refresh_attempts: 3
-      delay_seconds: 0
+      delay_seconds: 3
     nonzero_after_rechecks_status: ERROR
   nodes:
     scope: all

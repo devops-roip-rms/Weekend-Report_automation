@@ -165,10 +165,7 @@ class RunWorkflowTests(unittest.TestCase):
             manual_db_snapshot["comment"],
             saved_manual_db.comment,
         )
-        self.assertEqual(
-            manual_db_snapshot["reviewer"],
-            saved_manual_db.reviewer,
-        )
+        self.assertNotIn("reviewer", manual_db_snapshot)
         self.assertEqual(
             manual_db_snapshot["reviewed_at"],
             saved_manual_db.reviewed_at,
@@ -181,6 +178,7 @@ class RunWorkflowTests(unittest.TestCase):
             snapshot["snapshot_version"],
             2,
         )
+        self.assertEqual(snapshot["review"]["reviewer"], "reviewer")
         final_run = self.repo.get_run(
             run.run_id
         )

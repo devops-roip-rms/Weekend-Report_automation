@@ -57,13 +57,9 @@ class DockerConfigTests(unittest.TestCase):
         self.assertFalse(egress.get("internal", False))
         self.assertTrue(compose["networks"]["backend"]["internal"])
 
-    def test_mode_overrides_do_not_duplicate_runtime_auth_config(self):
+    def test_mode_overrides_keep_expected_network_and_tls_behavior(self):
         direct = Path("deploy/docker/compose.direct.yml").read_text(encoding="utf-8")
         proxy = Path("deploy/docker/compose.proxy.yml").read_text(encoding="utf-8")
-        for text in (direct, proxy):
-            self.assertNotIn("WEEKEND_REPORT_AUTH_MODE:", text)
-            self.assertNotIn("WEEKEND_REPORT_AUTH_PROVIDER:", text)
-            self.assertNotIn("WEEKEND_REPORT_AUTH_TRUSTED_HEADER:", text)
         self.assertIn("./tls:/app/tls:ro", direct)
         self.assertIn('"127.0.0.1:8080:8080"', proxy)
 
@@ -86,7 +82,7 @@ class DockerConfigTests(unittest.TestCase):
         examples = {
             "app.env.example": "WEEKEND_REPORT_APP_VERSION=<TBD>",
             "portainer.env.example": "PORTAINER_SITE1_TOKEN=<TBD>",
-            "doctor.env.example": "Service inventory is discovered dynamically",
+            "doctor.env.example": "DOCTOR_SITE1_API_URL=<TBD>",
             "rabbitmq.env.example": "RABBITMQ_SITE1_PASSWORD=<TBD>",
             "recording.env.example": "RECORDING_MANAGER_WEBAPP_URL=<TBD>",
             "infrastructure.env.example": "SSH_PRIVATE_KEY_PATH=<TBD>",

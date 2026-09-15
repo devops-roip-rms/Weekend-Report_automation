@@ -35,7 +35,6 @@ def build_snapshot(
             "execution_method": "Performed locally by reviewer",
             "result": manual_db_review.result.value,
             "comment": manual_db_review.comment,
-            "reviewer": manual_db_review.reviewer,
             "reviewed_at": manual_db_review.reviewed_at,
             "final_decision": decision.value,
         }

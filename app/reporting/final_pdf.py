@@ -41,7 +41,6 @@ def snapshot_to_lines(snapshot: dict[str, Any]) -> list[str]:
         f"state: {run.get('state')}",
         f"automation_status: {run.get('automation_status')}",
         f"overall_status: {snapshot.get('overall_status')}",
-        f"started_by: {run.get('started_by')}",
         f"created_at: {run.get('created_at')}",
         f"started_at: {run.get('started_at')}",
         f"finished_at: {run.get('finished_at')}",
@@ -57,12 +56,6 @@ def snapshot_to_lines(snapshot: dict[str, Any]) -> list[str]:
         f"config_source_dir: {snapshot.get('configuration', {}).get('source_dir')}",
         f"snapshot_version: {snapshot.get('snapshot_version')}",
         f"snapshot_created_at: {snapshot.get('created_at')}",
-        "",
-        "Reviewer Confirmation",
-        f"reviewer: {review.get('reviewer')}",
-        f"decision: {review.get('decision')}",
-        f"confirmed_at: {review.get('confirmed_at')}",
-        "",
     ]
     lines.extend(_summary_lines("Site Summaries", snapshot.get("site_summaries", []), "site"))
     lines.extend(_summary_lines("Module Summaries", snapshot.get("module_summaries", []), "module"))
@@ -76,6 +69,15 @@ def snapshot_to_lines(snapshot: dict[str, Any]) -> list[str]:
     lines.extend(_note_lines(snapshot.get("notes", [])))
     lines.extend(_splunk_lines(snapshot.get("splunk_dashboards", []), snapshot.get("notes", [])))
     lines.extend(_evidence_lines(snapshot.get("evidence", [])))
+    lines.extend(
+        [
+            "Reviewer Confirmation",
+            f"Reviewer: {review.get('reviewer')}",
+            f"Decision: {review.get('decision')}",
+            f"Confirmed at: {review.get('confirmed_at')}",
+            "",
+        ]
+    )
     return lines
 
 
@@ -154,7 +156,6 @@ def _manual_db_lines(
                 f"{review.get('execution_method')}"
             ),
             f"Result: {review.get('result')}",
-            f"Reviewer: {review.get('reviewer')}",
             (
                 "Timestamp: "
                 f"{review.get('reviewed_at')}"
@@ -177,8 +178,7 @@ def _note_lines(notes: list[dict[str, Any]]) -> list[str]:
         lines.extend(
             [
                 f"note_id: {note.get('id')} | scope: {note.get('scope')} | target: {target}",
-                f"author: {note.get('author')} | reviewed: {note.get('reviewed')} | "
-                f"updated_at: {note.get('updated_at')}",
+                f"reviewed: {note.get('reviewed')} | updated_at: {note.get('updated_at')}",
                 f"note: {note.get('note')}",
                 "",
             ]

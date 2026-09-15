@@ -41,7 +41,7 @@ class ConfigValidationTests(unittest.TestCase):
         )
 
     def test_fixture_config_is_valid(self):
-        report = validate_config(load_fixture_config())
+        report = validate_config(load_fixture_config(), production_preflight=False)
         self.assertTrue(report.ok, report.lines())
 
     def test_missing_required_env_variables_are_reported_without_values(self):
@@ -58,6 +58,96 @@ class ConfigValidationTests(unittest.TestCase):
             any("rabbitmq_expected.connections.site2.password" in line for line in lines)
         )
         self.assertFalse(any("fixture-password" in line for line in lines))
+
+    def test_rabbitmq_custom_ca_is_valid(self):
+        env = valid_env()
+        env["RABBITMQ_SITE1_TLS_VERIFY"] = "custom_ca"
+        env["RABBITMQ_SITE1_CA_FILE"] = "/app/secrets/rabbitmq-site1-ca.pem"
+
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+
+        report = validate_config(
+            config,
+            production_preflight=True,
+        )
+
+        rabbitmq_tls_errors = [
+            line
+            for line in report.lines()
+            if "rabbitmq_expected.connections.site1" in line
+            and (
+                "tls_verify" in line
+                or "ca_file" in line
+            )
+        ]
+
+        self.assertEqual(
+            rabbitmq_tls_errors,
+            [],
+            rabbitmq_tls_errors,
+        )
+
+        self.assertEqual(
+            config["rabbitmq_expected"]["connections"]["site1"]["tls_verify"],
+            "custom_ca",
+        )
+        self.assertEqual(
+            config["rabbitmq_expected"]["connections"]["site1"]["ca_file"],
+            "/app/secrets/rabbitmq-site1-ca.pem",
+        )
+
+    def test_rabbitmq_custom_ca_requires_ca_file_in_production(self):
+        env = valid_env()
+        env["RABBITMQ_SITE1_TLS_VERIFY"] = "custom_ca"
+        env["RABBITMQ_SITE1_CA_FILE"] = ""
+
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+
+        report = validate_config(
+            config,
+            production_preflight=True,
+        )
+
+        self.assertFalse(report.ok)
+
+        self.assertTrue(
+            any(
+                "rabbitmq_expected.connections.site1.ca_file" in line
+                for line in report.lines()
+            ),
+            report.lines(),
+        )
+
+    def test_rabbitmq_tls_verify_false_is_rejected(self):
+        env = valid_env()
+        env["RABBITMQ_SITE1_TLS_VERIFY"] = "false"
+
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+
+        self.assertFalse(report.ok)
+
+        self.assertTrue(
+            any(
+                "rabbitmq_expected.connections.site1.tls_verify" in line
+                and "verify=false is not allowed" in line
+                for line in report.lines()
+            ),
+            report.lines(),
+        )
 
     def test_malformed_count_env_values_raise_config_error(self):
         env = valid_env()
@@ -162,7 +252,6 @@ class ConfigValidationTests(unittest.TestCase):
 
     def test_production_traceability_runtime_values_are_required(self):
         env = valid_env()
-        env["WEEKEND_REPORT_AUTH_MODE"] = "production"
         env["WEEKEND_REPORT_APP_VERSION"] = "<TBD>"
         env["WEEKEND_REPORT_BUILD_ID"] = ""
         with patch.dict(os.environ, env, clear=True):

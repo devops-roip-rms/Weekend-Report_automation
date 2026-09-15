@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import ssl
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -30,6 +31,14 @@ NODE_RAW_FIELDS = (
     "disk_free_alarm",
 )
 
+FD_WARNING_RATIO = 0.80
+FD_CRITICAL_RATIO = 0.95
+
+SOCKET_WARNING_RATIO = 0.80
+SOCKET_CRITICAL_RATIO = 1.00
+
+PROCESS_WARNING_RATIO = 0.50
+PROCESS_CRITICAL_RATIO = 0.75
 
 class RabbitMQError(RuntimeError):
     def __init__(
@@ -70,7 +79,7 @@ class RabbitMQClientSettings:
     base_url: str
     username: str
     password: str
-    tls_verify: bool
+    tls_verify: bool | ssl.SSLContext
     timeout_seconds: float
     retry_attempts: int
 
@@ -301,13 +310,9 @@ def _client_settings(site_id: str, connection: Any) -> RabbitMQClientSettings:
             "RabbitMQ live collection requires a connection object",
             site=site_id,
         )
-    tls_verify = connection.get("tls_verify")
-    if not isinstance(tls_verify, bool):
-        raise RabbitMQError(
-            "RABBITMQ_CONFIGURATION_ERROR",
-            "RabbitMQ tls_verify must be boolean",
-            site=site_id,
-        )
+
+    tls_verify = _tls_verify(connection, site_id)
+
     return RabbitMQClientSettings(
         site=site_id,
         base_url=_required_string(connection.get("url"), site_id, "url"),
@@ -322,6 +327,43 @@ def _client_settings(site_id: str, connection: Any) -> RabbitMQClientSettings:
         ),
     )
 
+def _tls_verify(
+    connection: dict[str, Any],
+    site_id: str,
+) -> bool | ssl.SSLContext:
+    value = connection.get("tls_verify")
+
+    if value is True:
+        return True
+
+    if value == "custom_ca":
+        ca_file = _required_string(
+            connection.get("ca_file"),
+            site_id,
+            "ca_file",
+        )
+
+        try:
+            return ssl.create_default_context(cafile=ca_file)
+        except (OSError, ssl.SSLError) as exc:
+            raise RabbitMQError(
+                "RABBITMQ_CONFIGURATION_ERROR",
+                f"RabbitMQ CA file could not be loaded: {ca_file}",
+                site=site_id,
+            ) from exc
+
+    if value is False:
+        raise RabbitMQError(
+            "RABBITMQ_CONFIGURATION_ERROR",
+            "RabbitMQ tls_verify=false is not allowed for production live collection",
+            site=site_id,
+        )
+
+    raise RabbitMQError(
+        "RABBITMQ_CONFIGURATION_ERROR",
+        "RabbitMQ tls_verify must be true or custom_ca",
+        site=site_id,
+    )
 
 def _collect_queue_snapshots(
     client: RabbitMQClient,
@@ -424,11 +466,98 @@ def _normalize_node(node: dict[str, Any]) -> dict[str, Any]:
 def _known_resource_states(node: dict[str, Any]) -> dict[str, str]:
     states: dict[str, str] = {}
 
-    if isinstance(node.get("disk_free_alarm"), bool):
-        states["disk_space"] = "red" if node["disk_free_alarm"] else "green"
+    file_descriptor_state = _ratio_state(
+        node.get("fd_used"),
+        node.get("fd_total"),
+        warning_ratio=FD_WARNING_RATIO,
+        critical_ratio=FD_CRITICAL_RATIO,
+    )
+    if file_descriptor_state is not None:
+        states["file_descriptors"] = file_descriptor_state
+
+    socket_state = _ratio_state(
+        node.get("sockets_used"),
+        node.get("sockets_total"),
+        warning_ratio=SOCKET_WARNING_RATIO,
+        critical_ratio=SOCKET_CRITICAL_RATIO,
+    )
+    if socket_state is not None:
+        states["socket_descriptors"] = socket_state
+
+    process_state = _ratio_state(
+        node.get("proc_used"),
+        node.get("proc_total"),
+        warning_ratio=PROCESS_WARNING_RATIO,
+        critical_ratio=PROCESS_CRITICAL_RATIO,
+    )
+    if process_state is not None:
+        states["erlang_processes"] = process_state
+
+    disk_free_alarm = node.get("disk_free_alarm")
+
+    if isinstance(disk_free_alarm, bool):
+        states["disk_space"] = "red" if disk_free_alarm else "green"
+    else:
+        disk_state = _disk_space_state(
+            node.get("disk_free"),
+            node.get("disk_free_limit"),
+        )
+        if disk_state is not None:
+            states["disk_space"] = disk_state
 
     return states
 
+def _ratio_state(
+    used: Any,
+    total: Any,
+    *,
+    warning_ratio: float,
+    critical_ratio: float,
+) -> str | None:
+    if not _is_non_negative_number(used):
+        return None
+
+    if not _is_positive_number(total):
+        return None
+
+    ratio = float(used) / float(total)
+
+    if ratio >= critical_ratio:
+        return "red"
+
+    if ratio >= warning_ratio:
+        return "yellow"
+
+    return "green"
+
+
+def _disk_space_state(
+    disk_free: Any,
+    disk_free_limit: Any,
+) -> str | None:
+    if not _is_non_negative_number(disk_free):
+        return None
+
+    if not _is_non_negative_number(disk_free_limit):
+        return None
+
+    return "red" if float(disk_free) < float(disk_free_limit) else "green"
+
+
+def _is_non_negative_number(value: Any) -> bool:
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and value >= 0
+    )
+
+
+def _is_positive_number(value: Any) -> bool:
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and value > 0
+    )
 
 def _required_string(value: Any, site: str, field: str) -> str:
     if not isinstance(value, str) or not value.strip() or is_unresolved_placeholder(value):

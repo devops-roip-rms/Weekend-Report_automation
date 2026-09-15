@@ -617,7 +617,7 @@ def _validate_doctor(config: dict[str, Any], report: ValidationReport) -> None:
     if not isinstance(api, dict):
         report.add_error("doctor.doctor.api", "api mode requires an api object")
     else:
-        for field_name in ["site1_url", "site2_url", "schema"]:
+        for field_name in ["site1_url", "site2_url"]:
             value = api.get(field_name)
             if is_unresolved_placeholder(value):
                 continue
@@ -862,8 +862,28 @@ def _validate_rabbitmq_connection(
         label="RabbitMQ password",
     )
     tls_verify = connection.get("tls_verify")
-    if not is_unresolved_placeholder(tls_verify) and not isinstance(tls_verify, bool):
-        report.add_error(f"{path}.tls_verify", "must be boolean")
+    if is_unresolved_placeholder(tls_verify):
+        pass
+    elif tls_verify is True:
+        pass
+    elif tls_verify == "custom_ca":
+        _validate_runtime_value(
+            connection.get("ca_file"),
+            f"{path}.ca_file",
+            report,
+            required=production_preflight,
+            label="RabbitMQ CA file",
+        )
+    elif tls_verify is False:
+        report.add_error(
+            f"{path}.tls_verify",
+            "verify=false is not allowed for live mode",
+        )
+    else:
+        report.add_error(
+            f"{path}.tls_verify",
+            "must be true or custom_ca",
+        )
     _validate_positive_number(connection.get("timeout_seconds"), f"{path}.timeout_seconds", report)
     _validate_positive_integer(connection.get("retry_attempts"), f"{path}.retry_attempts", report)
 
@@ -1536,89 +1556,10 @@ def _validate_runtime_environment(
     if not production_preflight:
         return
 
-    mode = (
-        os.getenv(
-            "WEEKEND_REPORT_AUTH_MODE",
-            "development",
-        )
-        .strip()
-        .lower()
-    )
-
-    if mode != "production":
-        return
-
-    provider = (
-        os.getenv(
-            "WEEKEND_REPORT_AUTH_PROVIDER",
-            "",
-        )
-        .strip()
-        .lower()
-    )
-
-    if _runtime_unset(provider):
-        report.add_error(
-            "runtime.auth",
-            "WEEKEND_REPORT_AUTH_PROVIDER must be set in production auth mode",
-        )
-
-    elif provider not in {
-        "trusted_header",
-        "local_login",
-    }:
-        report.add_error(
-            "runtime.auth",
-            ("WEEKEND_REPORT_AUTH_PROVIDER must be trusted_header or local_login"),
-        )
-
-    elif provider == "trusted_header":
-        if _runtime_unset(os.getenv("WEEKEND_REPORT_AUTH_TRUSTED_HEADER")):
-            report.add_error(
-                "runtime.auth",
-                ("WEEKEND_REPORT_AUTH_TRUSTED_HEADER must be set for trusted_header auth"),
-            )
-
-    elif provider == "local_login":
-        if _runtime_unset(os.getenv("WEEKEND_REPORT_LOCAL_USERS_FILE")):
-            report.add_error(
-                "runtime.auth",
-                ("WEEKEND_REPORT_LOCAL_USERS_FILE must be set for local_login auth"),
-            )
-
-        if _runtime_unset(os.getenv("WEEKEND_REPORT_SESSION_SIGNING_KEY")):
-            report.add_error(
-                "runtime.auth",
-                ("WEEKEND_REPORT_SESSION_SIGNING_KEY must be set for local_login auth"),
-            )
-
-        session_ttl_raw = os.getenv(
-            "WEEKEND_REPORT_SESSION_TTL_SECONDS",
-            "14400",
-        ).strip()
-
-        try:
-            session_ttl = int(session_ttl_raw)
-
-            if session_ttl <= 0:
-                raise ValueError
-
-        except ValueError:
-            report.add_error(
-                "runtime.auth",
-                ("WEEKEND_REPORT_SESSION_TTL_SECONDS must be a positive integer"),
-            )
-
-    if _runtime_unset(os.getenv("WEEKEND_REPORT_AUTHORIZED_REVIEWERS")):
-        report.add_error(
-            "runtime.auth",
-            ("WEEKEND_REPORT_AUTHORIZED_REVIEWERS must be set in production auth mode"),
-        )
-
     if _runtime_unset(os.getenv("WEEKEND_REPORT_CSRF_SIGNING_KEY")):
         report.add_error(
             "runtime.csrf",
-            ("WEEKEND_REPORT_CSRF_SIGNING_KEY must be set for production browser mutations"),
+            "WEEKEND_REPORT_CSRF_SIGNING_KEY must be set for production browser mutations",
         )
 
     csrf_ttl_raw = os.getenv(
@@ -1628,16 +1569,13 @@ def _validate_runtime_environment(
 
     try:
         csrf_ttl = int(csrf_ttl_raw)
-
         if csrf_ttl <= 0:
             raise ValueError
-
     except ValueError:
         report.add_error(
             "runtime.csrf",
-            ("WEEKEND_REPORT_CSRF_TTL_SECONDS must be a positive integer"),
+            "WEEKEND_REPORT_CSRF_TTL_SECONDS must be a positive integer",
         )
-
 
 def _runtime_unset(value: str | None) -> bool:
     return (

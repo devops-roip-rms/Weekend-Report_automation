@@ -58,6 +58,9 @@ STATUS_STRENGTH = {
 }
 
 
+SYSTEM_ACTOR = "local-operator"
+
+
 MODULES = [
     "portainer",
     "doctor",

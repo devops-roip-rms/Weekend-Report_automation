@@ -226,9 +226,8 @@ def _load_doctor(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any
     return {
         "mode": _env_string(env, "DOCTOR_MODE", "api"),
         "api": {
-            "site1_url": _env_string(env, "DOCTOR_SITE1_URL"),
-            "site2_url": _env_string(env, "DOCTOR_SITE2_URL"),
-            "schema": _env_string(env, "DOCTOR_API_SCHEMA"),
+            "site1_url": _env_string(env, "DOCTOR_SITE1_API_URL"),
+            "site2_url": _env_string(env, "DOCTOR_SITE2_API_URL"),
         },
         "validation": copy.deepcopy(policy.get("validation", {})),
         "manual_review": copy.deepcopy(policy.get("manual_review", {})),
@@ -251,7 +250,15 @@ def _load_rabbitmq(
             "url": _env_string(env, f"{prefix}_URL"),
             "user": _env_string(env, f"{prefix}_USER"),
             "password": _env_string(env, f"{prefix}_PASSWORD"),
-            "tls_verify": _env_bool(env, f"{prefix}_TLS_VERIFY", default=True),
+            "tls_verify": _env_tls_verify(
+                env,
+                f"{prefix}_TLS_VERIFY",
+                default=True,
+            ),
+            "ca_file": _env_string(
+                env,
+                f"{prefix}_CA_FILE",
+            ),
             "timeout_seconds": _env_float(
                 env,
                 f"{prefix}_TIMEOUT_SECONDS",

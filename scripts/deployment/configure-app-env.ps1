@@ -83,22 +83,8 @@ Set-EnvValue `
     -Name "WEEKEND_REPORT_CSRF_SIGNING_KEY" `
     -Value $CsrfSigningKey
 
-# The current production design uses trusted_header authentication.
-# A separate application session signing key is not required in that mode.
-Set-EnvValue `
-    -Path $EnvPath `
-    -Name "WEEKEND_REPORT_SESSION_SIGNING_KEY" `
-    -Value "<NOT_APPLICABLE>"
-
-Write-Host "Generated PostgreSQL password."
-Write-Host "Updated WEEKEND_REPORT_DATABASE_URL."
-Write-Host "Generated CSRF signing key."
-Write-Host "Set WEEKEND_REPORT_SESSION_SIGNING_KEY=<NOT_APPLICABLE>."
 Write-Host ""
 Write-Host "Secrets were not printed."
-Write-Host ""
-Write-Host "Still set manually when deploying:"
-Write-Host "  WEEKEND_REPORT_AUTHORIZED_REVIEWERS"
 Write-Host ""
 Write-Host "Leave these for the final release/build step:"
 Write-Host "  WEEKEND_REPORT_APP_VERSION"

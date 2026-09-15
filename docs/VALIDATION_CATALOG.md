@@ -434,29 +434,24 @@ ERROR:
 
 Raw evidence must be sanitized of known credentials/tokens.
 
-## 11. Auth / CSRF
+## 11. Application Access / CSRF
 
-### `auth.production_reviewer_identity`
+### `security.application_access`
 
-PASS:
-- authorized reviewer resolved through approved provider.
+Weekend Report does not implement an application login, local user database, trusted identity header, or authorized-reviewer list. Deployment access is controlled outside the application.
 
-FAIL:
-- unauthorized reviewer.
-
-ERROR:
-- missing/invalid provider configuration.
-
-### `auth.browser_csrf`
+### `security.browser_csrf`
 
 PASS:
-- reviewer-bound signed token valid.
+- signed token is valid when CSRF protection is configured.
 
 FAIL:
-- invalid/expired/mismatched token.
+- invalid, expired, or missing token for a protected browser mutation.
 
 ERROR:
-- signing configuration missing.
+- production preflight is missing the CSRF signing key or has an invalid TTL.
+
+The reviewer name is entered manually only during final confirmation and is not an access-control identity.
 
 ## 12. Recovery
 
@@ -484,7 +479,7 @@ ERROR:
 PASS:
 - route serves recorded run-owned final PDF;
 - safe path;
-- authorized access.
+- safe run-owned report path and existing file.
 
 ERROR:
 - unsafe/missing/arbitrary path.

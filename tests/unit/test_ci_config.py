@@ -278,6 +278,30 @@ class CIConfigTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, combined)
 
+    def test_rabbitmq_env_contract_includes_tls_ca_files(self):
+        ci_script = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "ci.py"
+        ).read_text(encoding="utf-8")
+        rabbitmq_block = ci_script.split(
+            '"rabbitmq.env": [',
+            1,
+        )[1].split(
+            "],",
+            1,
+        )[0]
+        for required_key in (
+            "RABBITMQ_SITE1_TLS_VERIFY",
+            "RABBITMQ_SITE1_CA_FILE",
+            "RABBITMQ_SITE2_TLS_VERIFY",
+            "RABBITMQ_SITE2_CA_FILE",
+        ):
+            self.assertIn(
+                f'"{required_key}"',
+                rabbitmq_block,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

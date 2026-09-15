@@ -267,26 +267,26 @@ Real runs must stay blocked while required production values are unresolved.
 The framework supports the following module boundaries, but real environment enablement remains controlled:
 
 - Portainer: read-only Docker Swarm service discovery, independent site health, and cross-site parity.
-- RabbitMQ: Management API topology/metrics validation.
+- RabbitMQ: read-only Management API queue and node-health validation.
 - Infrastructure: read-only SSH/command collection for root-filesystem usage and Chrony/NTP state.
-- DOCTOR: dynamic cross-site service validation is implemented, but the live API adapter is not implemented yet.
+- DOCTOR: dynamic cross-site service validation and live Health Checks UI `doctor-api` collection are implemented.
 - Splunk: human dashboard review.
 - Recording: existing-device workflow and recovery policy are implemented, but live collection/control remains intentionally blocked.
 
-Do not enable any live integration until the required environment values, expected state, authentication, evidence policy, and status semantics are approved.
+Do not enable any live integration until the required environment values, expected state, integration credentials, evidence policy, and status semantics are approved.
 
 ## Review and Finalization
 
-Production pages require authenticated/authorized access except health endpoints.
+Weekend Report does not implement an application login or user-account boundary. Control network exposure at the deployment layer.
 
-Browser mutations use reviewer-bound signed CSRF tokens.
+Browser mutations use signed CSRF tokens when the CSRF signing key is configured; production preflight requires the key.
 
 Reviewer notes are additive and never rewrite machine findings.
 
 Final confirmation:
 
 1. validates readiness policy;
-2. freezes results, evidence references, notes, summaries, reviewer identity, decision, and traceability;
+2. freezes results, evidence references, notes, summaries, the manually entered reviewer name, decision, and traceability;
 3. writes `review_snapshot.json`;
 4. renders exactly one final PDF from that immutable snapshot;
 5. records the PDF path and checksum.

@@ -175,10 +175,18 @@
     return document.querySelector("input[name='review-decision']:checked");
   }
 
+  function reviewerName() {
+    return document.querySelector("[data-final-reviewer-name]")?.value?.trim() || "";
+  }
+
   function prepareFinalConfirmation(button) {
     const selected = selectedDecision();
     if (!selected) {
       throw new Error("Select APPROVE or REJECT before final confirmation.");
+    }
+    const reviewer = reviewerName();
+    if (!reviewer) {
+      throw new Error("Enter the reviewer name before final confirmation.");
     }
     const panel = document.querySelector("[data-finalize-confirmation]");
     if (button.dataset.confirmationDecision !== selected.value) {
@@ -212,6 +220,10 @@
     if (!selected) {
       throw new Error("Select APPROVE or REJECT before final confirmation.");
     }
+    const reviewer = reviewerName();
+    if (!reviewer) {
+      throw new Error("Enter the reviewer name before final confirmation.");
+    }
     await saveAllNotes();
     const response = await fetch(`/api/runs/${runId}/finalize`, {
       method: "POST",
@@ -219,7 +231,7 @@
         "Content-Type": "application/json",
         ...csrfHeaders(),
       },
-      body: JSON.stringify({ decision: selected.value }),
+      body: JSON.stringify({ decision: selected.value, reviewer }),
     });
     if (!response.ok) {
       const body = await readError(response);
@@ -337,8 +349,7 @@
           "[data-manual-db-saved-status]"
         );
         if (slot && saved) {
-          slot.textContent =
-            `Saved by ${saved.reviewer} at ${saved.reviewed_at}`;
+          slot.textContent = `Saved at ${saved.reviewed_at}`;
         }
         setStatus(
           `Manual DB check saved: ${saved.result}.`,
@@ -363,15 +374,6 @@
           `Final confirmation saved: ${result.decision}.`,
           "success"
         );
-      } else if (button.dataset.action === "finalize") {
-        if (!prepareFinalConfirmation(button)) {
-          return;
-        }
-        button.disabled = true;
-        const result = await finalize(button.dataset.runId);
-        exposeFinalPdf(result.final_pdf_url);
-        setStatus(`Final confirmation saved: ${result.decision}.`, "success");
-        notify(`Final confirmation saved: ${result.decision}.`, "success");
       } else if (button.dataset.action === "resolve-recovery") {
         button.disabled = true;
         const result = await resolveRecovery(button);
