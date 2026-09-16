@@ -162,10 +162,86 @@ class ConfigValidationTests(unittest.TestCase):
     def test_infrastructure_server_list_is_parsed_from_numbered_env(self):
         config = load_valid_config()
         site1_servers = config["servers"]["sites"]["site1"]["servers"]
-        self.assertEqual(site1_servers[0]["id"], "srv1")
-        self.assertEqual(site1_servers[0]["hostname"], "fixture1")
-        self.assertEqual(site1_servers[0]["ssh_port"], 22)
-        self.assertEqual(site1_servers[0]["chrony"][0]["timezone"], "UTC")
+        server = site1_servers[0]
+        self.assertEqual(server["id"], "srv1")
+        self.assertEqual(server["hostname"], "fixture1")
+        self.assertEqual(server["ssh_port"], 22)
+        self.assertTrue(server["required"])
+        self.assertEqual(
+            server["filesystems"],
+            [
+                {
+                    "path": "/",
+                    "command": "df -h /",
+                    "warning_percent": 70,
+                    "critical_percent": 80,
+                    "required": True,
+                }
+            ],
+        )
+        self.assertEqual(server["chrony"][0]["timezone"], "UTC")
+        self.assertEqual(server["chrony"][0]["source"], "fixture-ntp")
+        self.assertEqual(server["chrony"][0]["warning_offset"], 0.5)
+        self.assertEqual(server["chrony"][0]["critical_offset"], 1.0)
+        self.assertNotIn("nfs_mounts", server)
+
+    def test_infrastructure_uses_strict_private_key_ssh(self):
+        config = load_valid_config()
+        self.assertEqual(
+            config["servers"]["ssh"]["auth"],
+            "private_key",
+        )
+        self.assertEqual(
+            config["servers"]["ssh"]["host_key_policy"],
+            "strict",
+        )
+        self.assertEqual(
+            config["servers"]["ssh"]["private_key_path"],
+            "/run/secrets/fixture-key",
+        )
+        self.assertEqual(
+            config["servers"]["ssh"]["known_hosts_path"],
+            "/run/secrets/fixture-known-hosts",
+        )
+
+    def test_infrastructure_rejects_non_strict_host_key_policy(self):
+        config = load_valid_config()
+        config["servers"]["ssh"]["host_key_policy"] = "accept-new"
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertFalse(report.ok)
+        self.assertTrue(
+            any(
+                "servers.ssh.host_key_policy" in line
+                and "must be strict" in line
+                for line in report.lines()
+            ),
+            report.lines(),
+        )
+
+    def test_infrastructure_rejects_removed_nfs_configuration(self):
+        config = load_valid_config()
+        server = config["servers"]["sites"]["site1"]["servers"][0]
+        server["nfs_mounts"] = [
+            {
+                "path": "/mnt/example",
+            }
+        ]
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertFalse(report.ok)
+        self.assertTrue(
+            any(
+                "nfs_mounts" in line
+                and "NFS validation was removed" in line
+                for line in report.lines()
+            ),
+            report.lines(),
+        )
 
     def test_splunk_dashboards_are_parsed_from_numbered_env(self):
         config = load_valid_config()

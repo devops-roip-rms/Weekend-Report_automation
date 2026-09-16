@@ -302,6 +302,53 @@ class CIConfigTests(unittest.TestCase):
                 rabbitmq_block,
             )
 
+    def test_site_identity_belongs_to_infrastructure_env(self):
+        ci_script = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "ci.py"
+        ).read_text(encoding="utf-8")
+        portainer_block = ci_script.split(
+            '"portainer.env": [',
+            1,
+        )[1].split(
+            "],",
+            1,
+        )[0]
+        infrastructure_block = ci_script.split(
+            '"infrastructure.env": [',
+            1,
+        )[1].split(
+            "],",
+            1,
+        )[0]
+        site_identity_keys = (
+            "SITE_COUNT",
+            "SITE1_ID",
+            "SITE1_DISPLAY_NAME",
+            "SITE1_PURPOSE",
+            "SITE2_ID",
+            "SITE2_DISPLAY_NAME",
+            "SITE2_PURPOSE",
+        )
+        for key in site_identity_keys:
+            self.assertIn(
+                f'"{key}"',
+                infrastructure_block,
+            )
+            self.assertNotIn(
+                f'"{key}"',
+                portainer_block,
+            )
+        for required_key in (
+            "SITE1_SERVER_1_REQUIRED",
+            "SITE2_SERVER_1_REQUIRED",
+        ):
+            self.assertIn(
+                f'"{required_key}"',
+                infrastructure_block,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -273,42 +273,97 @@ No automatic replay.
 
 ## 6. Infrastructure
 
+Infrastructure collection is read-only and uses SSH with private-key authentication.
+
+SSH requirements:
+
+- private-key authentication only;
+- strict SSH host-key verification;
+- a pre-verified `known_hosts` file is required;
+- interactive password authentication is not used;
+- host-key verification must not be disabled or changed to `accept-new`.
+
 ### Collection
 
 ERROR:
-- SSH live mode unconfigured;
-- unreachable;
-- command/parse failure.
+- SSH runtime configuration is missing or unresolved;
+- private key or `known_hosts` configuration is unavailable;
+- server is unreachable;
+- SSH authentication or host verification fails;
+- command execution times out or fails;
+- required output cannot be parsed reliably.
 
 ### Filesystem
 
+Only the root filesystem is validated.
+
+Expected:
+
+```text
+path: /
+command: df -h /
+warning_percent: 70
+critical_percent: 80
+```
+
+NFS validation is not part of the Infrastructure module.
+
 PASS:
-- mount exists and utilization below warning.
+- root filesystem exists;
+- utilization is below 70%.
 
 WARNING:
-- warning range.
+- root filesystem utilization is >= 70% and < 80%.
 
 FAIL:
-- required mount missing or utilization >= critical.
+- required root filesystem is missing;
+- utilization is >= 80%.
 
 ERROR:
-- actual state unavailable.
+- filesystem command fails;
+- output is missing or cannot be parsed reliably.
 
 ### Chrony
 
+Infrastructure validates:
+
+- configured timezone;
+- synchronization state;
+- selected Chrony source;
+- absolute clock offset.
+
+The selected source is collected from:
+
+```text
+chronyc sources -n
+```
+
+Synchronization and offset state are collected from:
+
+```text
+chronyc tracking
+```
+
 PASS:
-- synchronized;
-- expected source;
-- offset below warning.
+- timezone matches the configured value;
+- Chrony is synchronized;
+- selected source matches the configured source;
+- absolute offset is below the warning threshold.
 
 WARNING:
-- warning offset range.
+- absolute offset is in the configured warning range.
 
 FAIL:
-- unsynchronized/source mismatch/critical offset.
+- timezone mismatch;
+- Chrony is unsynchronized;
+- selected source does not match;
+- absolute offset reaches the configured critical threshold.
 
 ERROR:
-- output unavailable/malformed.
+- timezone or Chrony command fails;
+- synchronization state is unavailable;
+- selected source is unavailable;
+- offset is unavailable or malformed.
 
 ## 7. DOCTOR
 
@@ -335,7 +390,8 @@ Only explicitly marked unhealthy/missing service-health findings are reviewable 
 ### `doctor.module_status`
 
 PASS:
-- all 17 expected services are healthy on both sites.
+- all discovered services are healthy on both sites;
+- both sites expose matching discovered service inventories.
 
 MANUAL_REVIEW:
 - one or more service-level health findings are reviewable health issues.

@@ -34,6 +34,25 @@ $MustConfigure = @()
 $DeferredRelease = @()
 $DeferredAdapter = @()
 
+function Get-EnvValue {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    foreach ($Line in Get-Content $Path) {
+        if ($Line -match ('^\s*' + [regex]::Escape($Name) + '=(.*)$')) {
+            return $matches[1].Trim()
+        }
+    }
+
+    return $null
+}
+
 foreach ($File in $RuntimeFiles) {
     if (-not (Test-Path $File)) {
         $MissingFiles += $File
@@ -49,6 +68,37 @@ foreach ($File in $RuntimeFiles) {
                 if ($ReleaseLater -contains $Name) { $DeferredRelease += $Item }
                 elseif ($BlockedAdapter -contains $Name) { $DeferredAdapter += $Item }
                 else { $MustConfigure += $Item }
+            }
+        }
+    }
+}
+
+$InfrastructureEnv = "deploy\docker\env\infrastructure.env"
+
+if (Test-Path $InfrastructureEnv) {
+    foreach ($Name in @(
+        "SSH_PRIVATE_KEY_PATH",
+        "SSH_KNOWN_HOSTS_PATH"
+    )) {
+        $Value = Get-EnvValue $InfrastructureEnv $Name
+
+        if (
+            [string]::IsNullOrWhiteSpace($Value) -or
+            $Value -match '^<.*>$'
+        ) {
+            $AlreadyReported = @(
+                $MustConfigure |
+                    Where-Object {
+                        $_.File -eq $InfrastructureEnv -and
+                        $_.Variable -eq $Name
+                    }
+            ).Count -gt 0
+
+            if (-not $AlreadyReported) {
+                $MustConfigure += [PSCustomObject]@{
+                    File = $InfrastructureEnv
+                    Variable = $Name
+                }
             }
         }
     }
