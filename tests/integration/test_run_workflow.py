@@ -64,9 +64,17 @@ class RunWorkflowTests(unittest.TestCase):
         )
 
     def save_required_approval_notes(self, run_id: str) -> None:
-        self.repo.save_note(
-            ReviewNote(run_id, NoteScope.MODULE, "reviewer", "module note", module="portainer")
-        )
+        review = self.config["rules"]["review"]
+        for module in review["required_module_notes"]:
+            self.repo.save_note(
+                ReviewNote(
+                    run_id,
+                    NoteScope.MODULE,
+                    "reviewer",
+                    f"module note for {module}",
+                    module=module,
+                )
+            )
         for result in self.repo.list_results(run_id):
             if result.status.value != "PASS":
                 self.repo.save_note(
@@ -87,6 +95,18 @@ class RunWorkflowTests(unittest.TestCase):
                     f"note for {dashboard['id']}",
                     dashboard_id=dashboard["id"],
                     reviewed=True,
+                )
+            )
+        if (
+            review.get("general_notes_enabled")
+            and review.get("general_note_required")
+        ):
+            self.repo.save_note(
+                ReviewNote(
+                    run_id,
+                    NoteScope.GENERAL,
+                    "reviewer",
+                    "general approval note",
                 )
             )
 
@@ -237,12 +257,21 @@ class RunWorkflowTests(unittest.TestCase):
             snapshot["overall_status"], self.repo.get_run(run.run_id).automation_status.value
         )
         note_text = [n["note"] for n in snapshot["notes"]]
-        self.assertIn("module note", note_text)
+        expected_module_notes = [
+            f"module note for {module}"
+            for module in self.config["rules"]["review"]["required_module_notes"]
+        ]
+        for expected_note in expected_module_notes:
+            self.assertIn(expected_note, note_text)
         self.assertIn("result note", note_text)
         for dashboard in self.config["splunk_dashboards"]["dashboards"]:
-            self.assertIn(f"note for {dashboard['id']}", note_text)
+            self.assertIn(
+                f"note for {dashboard['id']}",
+                note_text,
+            )
         html = render_final_html(snapshot)
-        self.assertIn("module note", html)
+        for expected_note in expected_module_notes:
+            self.assertIn(expected_note, html)
         self.assertTrue(
             (self.evidence.root / self.repo.get_run(run.run_id).final_pdf_path).exists()
         )

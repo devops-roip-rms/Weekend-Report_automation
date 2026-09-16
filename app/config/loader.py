@@ -384,9 +384,22 @@ def _load_splunk(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any
                     _env_string(env, f"{prefix}_NAME"),
                 ),
                 "url": _env_string(env, f"{prefix}_URL"),
-                "required_review": bool(defaults.get("required_review", True)),
-                "note_required": bool(defaults.get("note_required", False)),
-                "order": _env_int(env, f"{prefix}_ORDER", default=idx, min_value=1),
+                "required_review": _env_bool(
+                    env,
+                    f"{prefix}_REQUIRED_REVIEW",
+                    default=bool(defaults.get("required_review", True)),
+                ),
+                "note_required": _env_bool(
+                    env,
+                    f"{prefix}_NOTE_REQUIRED",
+                    default=bool(defaults.get("note_required", False)),
+                ),
+                "order": _env_int(
+                    env,
+                    f"{prefix}_ORDER",
+                    default=idx,
+                    min_value=1,
+                ),
             }
         )
     return {

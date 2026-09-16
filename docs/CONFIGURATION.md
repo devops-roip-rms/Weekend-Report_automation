@@ -1,6 +1,6 @@
 # Weekend Report Configuration
 
-**Documentation synchronized:** 2026-09-07
+**Documentation synchronized:** 2026-09-16
 
 ## 1. Configuration Model
 
@@ -382,26 +382,29 @@ RabbitMQ credentials remain runtime secrets and must not be committed to source 
 
 ## 11. DOCTOR
 
-DOCTOR does not use a configured service inventory.
+DOCTOR uses the live API contract and discovers each site's service inventory dynamically.
 
-Runtime configuration is limited to the API contract, for example:
+Runtime configuration:
 
 ```text
 DOCTOR_MODE=api
-DOCTOR_SITE1_URL=<TBD>
-DOCTOR_SITE2_URL=<TBD>
+DOCTOR_SITE1_API_URL=<TBD>
+DOCTOR_SITE2_API_URL=<TBD>
 ```
 
-When the live adapter is implemented, each site's service inventory is discovered dynamically and
-the two service sets are compared.
+There is no configured or hardcoded production service inventory.
 
-Current implementation status:
+For each site, the application obtains the current service state from the configured DOCTOR API.
+The discovered service sets and health states are then validated and compared across the two sites.
 
-```text
-LIVE DOCTOR API ADAPTER: NOT IMPLEMENTED
-```
+Technical API, authentication, transport, and schema failures remain blocking errors.
 
-Filling the three ENV values alone does not make the DOCTOR module production-ready.
+Eligible service-health findings may enter the configured manual-review path. Manual review does not
+rewrite the underlying health error to PASS, and cross-site parity cannot make two identically
+unhealthy sites healthy.
+
+The deployment scanner treats unresolved DOCTOR_SITE1_API_URL and
+DOCTOR_SITE2_API_URL values as configuration that must be supplied before deployment.
 
 ## 12. Recording
 
@@ -423,7 +426,10 @@ production.
 
 ## 13. Splunk
 
-Splunk dashboard definitions come from numbered runtime ENV values.
+Splunk is a human dashboard-review workflow. Weekend Report does not automatically determine
+dashboard health through a Splunk API.
+
+Dashboard definitions come from numbered runtime ENV values.
 
 Typical structure:
 
@@ -433,11 +439,55 @@ SPLUNK_DASHBOARD_COUNT=<number>
 SPLUNK_DASHBOARD_1_ID=<value>
 SPLUNK_DASHBOARD_1_DISPLAY_NAME=<value>
 SPLUNK_DASHBOARD_1_URL=<value>
+SPLUNK_DASHBOARD_1_REQUIRED_REVIEW=true
+SPLUNK_DASHBOARD_1_NOTE_REQUIRED=false
+SPLUNK_DASHBOARD_1_ORDER=1
 ```
 
-The dashboard count is dynamic. Add/remove numbered entries rather than changing application code.
+The dashboard count is dynamic. Add or remove numbered entries rather than changing application code.
 
-Dashboard review requirements and note policy remain in `rules.yml`.
+`rules.yml` supplies the default dashboard-review policy:
+
+```yaml
+splunk:
+  dashboard_defaults:
+    required_review: true
+    note_required: false
+  open_all:
+    include_optional: true
+```
+
+Each dashboard can override the default review behavior through its numbered runtime ENV entry:
+
+```text
+SPLUNK_DASHBOARD_N_REQUIRED_REVIEW
+SPLUNK_DASHBOARD_N_NOTE_REQUIRED
+SPLUNK_DASHBOARD_N_ORDER
+```
+
+The fields are independent:
+
+* `REQUIRED_REVIEW=true` means the dashboard must be explicitly marked reviewed before APPROVE.
+* `NOTE_REQUIRED=true` means a non-empty dashboard reviewer note is required before APPROVE.
+* `ORDER` controls dashboard display order.
+
+A dashboard may therefore be optional for explicit review while still requiring a note, or require
+explicit review without requiring note text.
+
+`OPEN ALL DASHBOARDS` follows `splunk.open_all.include_optional`. Required dashboards are always
+included; optional dashboards are included when that policy is enabled.
+
+The Splunk module's global reviewer-note requirement is separate from per-dashboard notes and remains
+controlled by `rules.review.required_module_notes`.
+
+The deployment helper:
+
+```text
+scripts/deployment/configure-splunk-env.ps1
+```
+
+creates the dynamic numbered dashboard inventory and prompts for review requirement, note requirement,
+and display order for each dashboard.
 
 ## 14. Business Policy in rules.yml
 

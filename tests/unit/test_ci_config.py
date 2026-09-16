@@ -302,6 +302,40 @@ class CIConfigTests(unittest.TestCase):
                 rabbitmq_block,
             )
 
+    def test_splunk_env_contract_includes_review_policy_fields(self):
+        ci_script = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "ci.py"
+        ).read_text(encoding="utf-8")
+        splunk_block = ci_script.split(
+            '"splunk.env": [',
+            1,
+        )[1].split(
+            "],",
+            1,
+        )[0]
+        for dashboard_number in range(1, 5):
+            for suffix in (
+                "ID",
+                "DISPLAY_NAME",
+                "URL",
+                "REQUIRED_REVIEW",
+                "NOTE_REQUIRED",
+                "ORDER",
+            ):
+                required_key = (
+                    f"SPLUNK_DASHBOARD_{dashboard_number}_{suffix}"
+                )
+                self.assertIn(
+                    f'"{required_key}"',
+                    splunk_block,
+                )
+        self.assertIn(
+            '"SPLUNK_DASHBOARD_COUNT"',
+            splunk_block,
+        )
+
     def test_site_identity_belongs_to_infrastructure_env(self):
         ci_script = (
             Path(__file__).resolve().parents[2]

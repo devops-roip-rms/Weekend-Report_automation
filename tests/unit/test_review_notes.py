@@ -56,6 +56,25 @@ class ReviewNoteApiTests(unittest.TestCase):
                 json={"note": f"reviewed {dashboard['id']}", "reviewed": True},
             )
 
+    def save_required_module_notes(
+        self,
+        run_id: str,
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        request_headers = headers or {}
+        for module in self.config["rules"]["review"]["required_module_notes"]:
+            response = self.client.put(
+                f"/api/runs/{run_id}/notes/module/{module}",
+                json={"note": f"module note for {module}"},
+                headers=request_headers,
+            )
+            self.assertEqual(
+                response.status_code,
+                200,
+                response.text,
+            )
+
     def test_notes_are_blocked_before_review_ready(self):
         self.repo.create_run(started_by="tester", run_id="WR-20260811-000000")
         response = self.client.put(
@@ -106,10 +125,7 @@ class ReviewNoteApiTests(unittest.TestCase):
     def test_review_ui_loads_saved_notes_and_finalizes(self):
         run_id = self.make_review_ready_run()
         result = self.repo.list_results(run_id)[0]
-        self.client.put(
-            f"/api/runs/{run_id}/notes/module/portainer",
-            json={"note": "module note"},
-        )
+        self.save_required_module_notes(run_id)
         self.client.put(
             f"/api/runs/{run_id}/notes/result/{result.id}",
             json={"note": "result note"},
@@ -199,10 +215,199 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.assertIn("Chrony/NTP", infrastructure.text)
 
     def test_splunk_review_page_uses_dashboard_cards(self):
-        run_id = self.make_review_ready_run("WR-20260811-000012")
-        self.client.put(
+        dashboards = {
+            dashboard["id"]: dashboard
+            for dashboard in self.config["splunk_dashboards"]["dashboards"]
+        }
+        dashboards["system_health"].update(
+            {
+                "required_review": True,
+                "note_required": True,
+                "order": 30,
+            }
+        )
+        dashboards["recording"].update(
+            {
+                "required_review": False,
+                "note_required": False,
+                "order": 10,
+            }
+        )
+        dashboards["infrastructure"].update(
+            {
+                "required_review": True,
+                "note_required": False,
+                "order": 20,
+            }
+        )
+        dashboards["errors"].update(
+            {
+                "required_review": False,
+                "note_required": True,
+                "order": 40,
+            }
+        )
+        self.config["splunk_dashboards"]["open_all"]["include_optional"] = False
+        run_id = self.make_review_ready_run(
+            "WR-20260811-000012"
+        )
+        response = self.client.put(
             f"/api/runs/{run_id}/notes/splunk/system_health",
-            json={"note": "dashboard reviewed", "reviewed": True},
+            json={
+                "note": "dashboard reviewed",
+                "reviewed": True,
+            },
+        )
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.text,
+        )
+        page = self.client.get(
+            f"/runs/{run_id}/splunk"
+        )
+        self.assertEqual(
+            page.status_code,
+            200,
+            page.text,
+        )
+        html = page.text
+        self.assertIn(
+            "OPEN ALL DASHBOARDS",
+            html,
+        )
+        self.assertIn(
+            "dashboard-card",
+            html,
+        )
+        self.assertIn(
+            "Open Dashboard",
+            html,
+        )
+        self.assertIn(
+            "Dashboard reviewed",
+            html,
+        )
+        self.assertIn(
+            "dashboard reviewed",
+            html,
+        )
+        # Cards must follow the configured display order.
+        recording_position = html.index(
+            'name="splunk-recording"'
+        )
+        infrastructure_position = html.index(
+            'name="splunk-infrastructure"'
+        )
+        system_health_position = html.index(
+            'name="splunk-system_health"'
+        )
+        errors_position = html.index(
+            'name="splunk-errors"'
+        )
+        self.assertLess(
+            recording_position,
+            infrastructure_position,
+        )
+        self.assertLess(
+            infrastructure_position,
+            system_health_position,
+        )
+        self.assertLess(
+            system_health_position,
+            errors_position,
+        )
+
+        def dashboard_card_html(
+            dashboard_id: str,
+        ) -> str:
+            marker = f'name="splunk-{dashboard_id}"'
+            marker_position = html.index(marker)
+            card_start = html.rfind(
+                '<article class="dashboard-card"',
+                0,
+                marker_position,
+            )
+            card_end = html.find(
+                "</article>",
+                marker_position,
+            )
+            self.assertNotEqual(
+                card_start,
+                -1,
+            )
+            self.assertNotEqual(
+                card_end,
+                -1,
+            )
+            return html[
+                card_start : card_end + len("</article>")
+            ]
+        system_health_card = dashboard_card_html(
+            "system_health"
+        )
+        recording_card = dashboard_card_html(
+            "recording"
+        )
+        infrastructure_card = dashboard_card_html(
+            "infrastructure"
+        )
+        errors_card = dashboard_card_html(
+            "errors"
+        )
+        # Review and note requirements must be visible to the operator.
+        self.assertIn(
+            "Required review",
+            system_health_card,
+        )
+        self.assertIn(
+            "Reviewer note",
+            system_health_card,
+        )
+        self.assertIn(
+            "(required)",
+            system_health_card,
+        )
+        self.assertIn(
+            "Optional",
+            recording_card,
+        )
+        self.assertIn(
+            "(optional)",
+            recording_card,
+        )
+        self.assertIn(
+            "Required review",
+            infrastructure_card,
+        )
+        self.assertIn(
+            "(optional)",
+            infrastructure_card,
+        )
+        self.assertIn(
+            "Optional",
+            errors_card,
+        )
+        self.assertIn(
+            "(required)",
+            errors_card,
+        )
+        # OPEN ALL excludes optional dashboards when configured to do so.
+        self.assertIn(
+            "data-dashboard-open-all",
+            system_health_card,
+        )
+        self.assertIn(
+            "data-dashboard-open-all",
+            infrastructure_card,
+        )
+        self.assertNotIn(
+            "data-dashboard-open-all",
+            recording_card,
+        )
+        self.assertNotIn(
+            "data-dashboard-open-all",
+            errors_card,
         )
 
         page = self.client.get(f"/runs/{run_id}/splunk")
@@ -272,13 +477,9 @@ class ReviewNoteApiTests(unittest.TestCase):
                 200,
                 manual_db.text,
             )
-            self.assertEqual(
-                self.client.put(
-                    f"/api/runs/{run_id}/notes/module/portainer",
-                    json={"note": "production module note"},
-                    headers=mutation_headers,
-                ).status_code,
-                200,
+            self.save_required_module_notes(
+                run_id,
+                headers=mutation_headers,
             )
             self.assertEqual(
                 self.client.put(

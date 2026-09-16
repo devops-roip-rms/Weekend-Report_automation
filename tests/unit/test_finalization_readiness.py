@@ -29,6 +29,10 @@ class FinalizationReadinessTests(unittest.TestCase):
         for name, rule in config["rules"]["modules"].items():
             rule["enabled"] = name == module
             rule["required"] = name == module
+        config["rules"]["review"]["required_module_notes"] = [
+            module
+        ]
+        config["rules"]["review"]["general_note_required"] = False
         return config
 
     def save_manual_db_result(
@@ -348,6 +352,70 @@ class FinalizationReadinessTests(unittest.TestCase):
         )
         self.assertEqual(
             validate_finalization_readiness(self.repo, config, run_id, ReviewDecision.APPROVE),
+            [],
+        )
+
+    def test_optional_splunk_dashboard_can_require_note_without_review(self):
+        config = self.single_module_config()
+        config["rules"]["review"]["required_module_notes"] = []
+        config["splunk_dashboards"]["dashboards"] = [
+            {
+                "id": "errors",
+                "display_name": "Errors",
+                "url": "https://example.invalid/splunk/errors",
+                "required_review": False,
+                "note_required": True,
+                "order": 1,
+            }
+        ]
+        run_id = self.make_review_ready_run(
+            run_id="WR-20260916-000001",
+        )
+        # Optional review does not require reviewed=True,
+        # but note_required=True must still block an empty note.
+        self.repo.save_note(
+            ReviewNote(
+                run_id,
+                NoteScope.SPLUNK_DASHBOARD,
+                "reviewer",
+                "",
+                dashboard_id="errors",
+                reviewed=False,
+            )
+        )
+        errors = validate_finalization_readiness(
+            self.repo,
+            config,
+            run_id,
+            ReviewDecision.APPROVE,
+        )
+        self.assertTrue(
+            any(
+                "Splunk dashboard errors requires a non-empty note."
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+        # A non-empty note satisfies note_required even though
+        # the dashboard itself remains optional and unreviewed.
+        self.repo.save_note(
+            ReviewNote(
+                run_id,
+                NoteScope.SPLUNK_DASHBOARD,
+                "reviewer",
+                "Errors dashboard checked for relevant findings.",
+                dashboard_id="errors",
+                reviewed=False,
+            )
+        )
+        self.assertEqual(
+            validate_finalization_readiness(
+                self.repo,
+                config,
+                run_id,
+                ReviewDecision.APPROVE,
+            ),
             [],
         )
 

@@ -255,6 +255,68 @@ class ConfigValidationTests(unittest.TestCase):
                 "errors",
             ],
         )
+        self.assertEqual(
+            [dashboard["required_review"] for dashboard in dashboards],
+            [True, True, True, True],
+        )
+        self.assertEqual(
+            [dashboard["note_required"] for dashboard in dashboards],
+            [False, False, False, False],
+        )
+        self.assertEqual(
+            [dashboard["order"] for dashboard in dashboards],
+            [1, 2, 3, 4],
+        )
+
+    def test_splunk_dashboard_review_policy_can_be_overridden_per_dashboard(self):
+        env = valid_env()
+        env["SPLUNK_DASHBOARD_1_REQUIRED_REVIEW"] = "false"
+        env["SPLUNK_DASHBOARD_1_NOTE_REQUIRED"] = "true"
+        env["SPLUNK_DASHBOARD_1_ORDER"] = "10"
+        env["SPLUNK_DASHBOARD_2_REQUIRED_REVIEW"] = "true"
+        env["SPLUNK_DASHBOARD_2_NOTE_REQUIRED"] = "false"
+        env["SPLUNK_DASHBOARD_2_ORDER"] = "20"
+        config = load_config_dir(
+            "deploy/docker/config",
+            env=env,
+        )
+        dashboards = config["splunk_dashboards"]["dashboards"]
+        self.assertEqual(
+            dashboards[0]["id"],
+            "system_health",
+        )
+        self.assertFalse(
+            dashboards[0]["required_review"],
+        )
+        self.assertTrue(
+            dashboards[0]["note_required"],
+        )
+        self.assertEqual(
+            dashboards[0]["order"],
+            10,
+        )
+        self.assertEqual(
+            dashboards[1]["id"],
+            "recording",
+        )
+        self.assertTrue(
+            dashboards[1]["required_review"],
+        )
+        self.assertFalse(
+            dashboards[1]["note_required"],
+        )
+        self.assertEqual(
+            dashboards[1]["order"],
+            20,
+        )
+        report = validate_config(
+            config,
+            production_preflight=False,
+        )
+        self.assertTrue(
+            report.ok,
+            report.lines(),
+        )
 
     def test_parity_sites_come_from_runtime_env_not_rules(self):
         env = valid_env()

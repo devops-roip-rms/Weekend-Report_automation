@@ -52,6 +52,7 @@ class DoctorTests(unittest.TestCase):
             rule["required"] = module == "doctor"
         config["splunk_dashboards"]["dashboards"] = []
         config["rules"]["review"]["required_module_notes"] = []
+        config["rules"]["review"]["general_note_required"] = False
         return config
 
     def test_dynamic_discovered_services_healthy_on_both_sites_pass(self):
