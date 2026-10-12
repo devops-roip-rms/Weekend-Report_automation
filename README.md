@@ -271,7 +271,6 @@ The framework supports the following module boundaries, but real environment ena
 - Infrastructure: read-only SSH/command collection for root-filesystem usage and Chrony/NTP state.
 - DOCTOR: dynamic cross-site service validation and live Health Checks UI `doctor-api` collection are implemented.
 - Splunk: human dashboard review.
-- Recording: existing-device workflow and recovery policy are implemented, but live collection/control remains intentionally blocked.
 
 Do not enable any live integration until the required environment values, expected state, integration credentials, evidence policy, and status semantics are approved.
 
@@ -299,5 +298,4 @@ See:
 - `docs/DEPLOYMENT.md`
 - `docs/RECOVERY_POLICY.md`
 - `docs/VALIDATION_CATALOG.md`
-
 

@@ -47,7 +47,6 @@ deploy/docker/env/
   portainer.env.example
   doctor.env.example
   rabbitmq.env.example
-  recording.env.example
   infrastructure.env.example
   splunk.env.example
 ```
@@ -62,7 +61,6 @@ deploy/docker/env/
   portainer.env
   doctor.env
   rabbitmq.env
-  recording.env
   infrastructure.env
   splunk.env
 ```
@@ -406,25 +404,7 @@ unhealthy sites healthy.
 The deployment scanner treats unresolved DOCTOR_SITE1_API_URL and
 DOCTOR_SITE2_API_URL values as configuration that must be supplied before deployment.
 
-## 12. Recording
-
-Recording uses the existing-device workflow only.
-
-Runtime ENV provides the Manager/WebApp endpoints and site server references. Safety, polling,
-expected count deltas, cleanup, and recovery behavior remain in `rules.yml`.
-
-Device creation/deletion is not part of this project.
-
-Current implementation status:
-
-```text
-LIVE RECORDING COLLECTOR: INTENTIONALLY BLOCKED
-```
-
-The live control/read contract must be implemented and approved before the module can be enabled in
-production.
-
-## 13. Splunk
+## 12. Splunk
 
 Splunk is a human dashboard-review workflow. Weekend Report does not automatically determine
 dashboard health through a Splunk API.
@@ -489,7 +469,7 @@ scripts/deployment/configure-splunk-env.ps1
 creates the dynamic numbered dashboard inventory and prompts for review requirement, note requirement,
 and display order for each dashboard.
 
-## 14. Business Policy in rules.yml
+## 13. Business Policy in rules.yml
 
 `deploy/docker/config/rules.yml` is the single runtime policy file.
 
@@ -502,7 +482,6 @@ It controls stable, reviewable policy such as:
 - Portainer task-state policy;
 - RabbitMQ queue/node rules;
 - infrastructure thresholds;
-- Recording safety/recovery policy;
 - review-note requirements;
 - approve/reject readiness;
 - stale-worker and recovery behavior.
@@ -510,7 +489,7 @@ It controls stable, reviewable policy such as:
 Environment-specific addresses, credentials, server lists, dashboard URLs, and tokens do not belong
 in `rules.yml`.
 
-## 15. Deployment Helper Scripts
+## 14. Deployment Helper Scripts
 
 Optional helper scripts are stored under:
 
@@ -541,7 +520,7 @@ Important:
 - no application user/login configuration is required;
 - `scan-unresolved-config.ps1` is useful on the deployment/build PC after the real ENV files exist.
 
-## 16. Configuration Validation
+## 15. Configuration Validation
 
 From the project root, with all runtime ENV files created:
 
@@ -552,7 +531,6 @@ python scripts/validate_config.py `
   --env-file deploy/docker/env/portainer.env `
   --env-file deploy/docker/env/doctor.env `
   --env-file deploy/docker/env/rabbitmq.env `
-  --env-file deploy/docker/env/recording.env `
   --env-file deploy/docker/env/infrastructure.env `
   --env-file deploy/docker/env/splunk.env
 ```
@@ -571,6 +549,5 @@ The deployment helper scan can also be run after real ENV files exist:
 .\scripts\deployment\scan-unresolved-config.ps1
 ```
 
-A production deployment is not ready merely because ENV syntax is valid. Live-module implementation
-blockers described above must also be resolved or explicitly disabled according to approved
-`rules.yml` policy.
+A production deployment is not ready merely because ENV syntax is valid. Runtime values, credentials,
+secrets, evidence policy, and review semantics must also be approved for the target environment.

@@ -52,12 +52,6 @@ def valid_env() -> dict[str, str]:
         "RABBITMQ_SITE2_PASSWORD": "fixture-password-2",
         "RABBITMQ_SITE2_TLS_VERIFY": "true",
         "RABBITMQ_SITE2_CA_FILE": "",
-        "RECORDING_COLLECTION_MODE": "live",
-        "RECORDING_MANAGER_WEBAPP_URL": "https://recording-manager.example.invalid",
-        "RECORDING_SITE1_WEBAPP_URL": "https://recording-site1.example.invalid",
-        "RECORDING_SITE1_SERVER_REFERENCE": "srv1",
-        "RECORDING_SITE2_WEBAPP_URL": "https://recording-site2.example.invalid",
-        "RECORDING_SITE2_SERVER_REFERENCE": "srv2",
         "SSH_USERNAME": "fixture",
         "SSH_PRIVATE_KEY_PATH": "/run/secrets/fixture-key",
         "SSH_KNOWN_HOSTS_PATH": "/run/secrets/fixture-known-hosts",
@@ -95,7 +89,6 @@ def fixture_env() -> dict[str, str]:
         {
             "PORTAINER_COLLECTION_MODE": "fixture",
             "RABBITMQ_COLLECTION_MODE": "fixture",
-            "RECORDING_COLLECTION_MODE": "fixture",
         }
     )
     return env
@@ -110,7 +103,6 @@ def load_fixture_config() -> dict:
     config["portainer_expected"]["fixture_actual"] = {"sites": copy.deepcopy(PORTAINER_SITES)}
     config["doctor"]["doctor"]["fixture_actual"] = {"sites": copy.deepcopy(DOCTOR_SITES)}
     config["rabbitmq_expected"]["fixture_actual"] = {"sites": copy.deepcopy(RABBITMQ_SITES)}
-    config["recording"]["fixture_actual"] = copy.deepcopy(RECORDING_ACTUAL)
     config["servers"]["fixture_actual"] = {"sites": copy.deepcopy(INFRASTRUCTURE_SITES)}
     return config
 
@@ -204,41 +196,6 @@ RABBITMQ_SITES = {
         "queues": [copy.deepcopy(RABBITMQ_QUEUE)],
         "nodes": [{**copy.deepcopy(RABBITMQ_NODE), "name": "rabbit@fixture2"}],
     },
-}
-
-RECORDING_ACTUAL = {
-    "selected_device": {
-        "id": "fixture-device-1",
-        "name": "Fixture Device",
-        "recording": False,
-        "created": False,
-        "deleted": False,
-    },
-    "device_selection": {"success": True},
-    "pre_start_verification": {"success": True, "recording": False},
-    "observations": {
-        "baseline": {
-            "site1_webapp": {"success": True, "count": 2},
-            "site2_webapp": {"success": True, "count": 3},
-            "site1_server": {"success": True, "count": 4},
-            "site2_server": {"success": True, "count": 5},
-        },
-        "after_start": {
-            "site1_webapp": {"success": True, "count": 3},
-            "site2_webapp": {"success": True, "count": 4},
-            "site1_server": {"success": True, "count": 5},
-            "site2_server": {"success": True, "count": 6},
-        },
-        "after_stop": {
-            "site1_webapp": {"success": True, "count": 2},
-            "site2_webapp": {"success": True, "count": 3},
-            "site1_server": {"success": True, "count": 4},
-            "site2_server": {"success": True, "count": 5},
-        },
-    },
-    "start_action": {"success": True, "device_id": "fixture-device-1"},
-    "stop_action": {"success": True, "device_id": "fixture-device-1"},
-    "cleanup": {"success": True, "complete": True, "selected_device_recording": False},
 }
 
 INFRASTRUCTURE_SITES = {

@@ -218,60 +218,7 @@ ERROR:
 - collected state is non-green under current policy;
 - required green-state mapping is unavailable.
 
-## 5. Recording
-
-### Workflow contract
-
-No device creation/deletion.
-
-Expected sequence:
-
-```text
-baseline
--> select existing non-recording device
--> start same device
--> verify increment/state
--> stop same device
--> verify restoration
--> cleanup
-```
-
-Subresults include:
-
-- device selection;
-- pre-start verification;
-- four baselines;
-- start action;
-- four after-start observations;
-- stop action;
-- four after-stop observations;
-- cleanup;
-- module status.
-
-PASS:
-- reliable expected transition.
-
-FAIL:
-- reliable bad behavior/mismatch before cleanup risk is introduced.
-
-ERROR:
-- unreliable state/unreachable/parse/unknown state;
-- live contract not approved;
-- cleanup failure;
-- recovery required.
-
-SKIPPED:
-- only if explicitly approved policy allows it.
-
-Unknown state after a state-changing action:
-
-```text
-RECOVERY_REQUIRED
-```
-
-No automatic replay.
-
-## 6. Infrastructure
+## 5. Infrastructure
 
 Infrastructure collection is read-only and uses SSH with private-key authentication.
 
@@ -365,7 +312,7 @@ ERROR:
 - selected source is unavailable;
 - offset is unavailable or malformed.
 
-## 7. DOCTOR
+## 6. DOCTOR
 
 API mode discovers the complete service inventory returned by each site dynamically. Every discovered service is validated independently, and the two discovered service sets must match.
 
@@ -401,7 +348,7 @@ ERROR:
 
 The underlying `doctor.service.health` `ERROR` remains recorded as `ERROR` in evidence and reporting.
 
-## 8. Splunk
+## 7. Splunk
 
 Actual:
 - persisted human dashboard review state.
@@ -420,7 +367,7 @@ Evidence:
 
 Opening a dashboard URL is not review completion.
 
-## 9. Review / Finalization
+## 8. Review / Finalization
 
 ### `review.note_ownership`
 
@@ -443,7 +390,6 @@ Before APPROVE enforce configured:
 - dashboard review;
 - required notes;
 - manual-review acknowledgments;
-- Recording cleanup acknowledgment;
 - status-specific approval policy.
 
 Narrow DOCTOR finalization exception:
@@ -452,7 +398,7 @@ Narrow DOCTOR finalization exception:
 - the same result set contains `doctor.module_status=MANUAL_REVIEW`;
 - the reviewer has saved the required acknowledgment/note on that module-level manual-review result.
 
-This exception does not apply to DOCTOR transport/API/authentication/timeout/schema/collection errors, configuration errors, infrastructure errors, RabbitMQ errors, Recording errors, Portainer errors, or any unrelated `ERROR`.
+This exception does not apply to DOCTOR transport/API/authentication/timeout/schema/collection errors, configuration errors, infrastructure errors, RabbitMQ errors, Portainer errors, or any unrelated `ERROR`.
 
 FAIL:
 - explicit status policy blocks approval.
@@ -473,7 +419,7 @@ ERROR -> PASS
 
 Automated status and reviewer decision remain separate facts.
 
-## 10. Evidence
+## 9. Evidence
 
 ### `evidence.persistence`
 
@@ -490,7 +436,7 @@ ERROR:
 
 Raw evidence must be sanitized of known credentials/tokens.
 
-## 11. Application Access / CSRF
+## 10. Application Access / CSRF
 
 ### `security.application_access`
 
@@ -509,15 +455,12 @@ ERROR:
 
 The reviewer name is entered manually only during final confirmation and is not an access-control identity.
 
-## 12. Recovery
+## 11. Recovery
 
 ### `recovery.stale_worker`
 
-Non-Recording stale:
+Stale worker:
 - fail without replay.
-
-Recording stale/uncertain:
-- `RECOVERY_REQUIRED`.
 
 ### `recovery.manual_resolution`
 
@@ -528,7 +471,7 @@ PASS:
 ERROR:
 - unresolved/invalid recovery.
 
-## 13. Reporting
+## 12. Reporting
 
 ### `reporting.final_pdf_access`
 
@@ -549,7 +492,7 @@ PASS:
 ERROR:
 - completeness mismatch.
 
-## 14. Docker Runtime
+## 13. Docker Runtime
 
 ### `docker.runtime_secret_boundary`
 
@@ -581,7 +524,7 @@ ERROR/FAIL:
 Important:
 `compose.ci.yml` must not rebuild a different image.
 
-## 15. CI / Release Validation
+## 14. CI / Release Validation
 
 ### `ci.pre_image_quality`
 
@@ -690,7 +633,7 @@ PASS:
 FAIL:
 - production secret names/values are embedded where forbidden.
 
-## 16. Release Artifact
+## 15. Release Artifact
 
 Verified artifact contains:
 

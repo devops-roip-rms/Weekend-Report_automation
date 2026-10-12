@@ -13,9 +13,6 @@ from app.config.schema import (
     RABBITMQ_HEALTH_STATES,
     RABBITMQ_SUPPORTED_COLLECTION_MODES,
     RABBITMQ_SUPPORTED_SCOPES,
-    RECORDING_INITIAL_STATES,
-    RECORDING_SUPPORTED_COLLECTION_MODES,
-    RECORDING_SUPPORTED_WORKFLOWS,
     SSH_SUPPORTED_AUTH_TYPES,
     SSH_SUPPORTED_HOST_KEY_POLICIES,
     UNRESOLVED_PLACEHOLDERS,
@@ -144,7 +141,7 @@ def validate_config(
     _validate_review_policy(config, report)
     _validate_manual_db_check(config, report)
     site_ids = _site_ids(config)
-    for area in ["portainer_expected", "rabbitmq_expected", "recording", "servers"]:
+    for area in ["portainer_expected", "rabbitmq_expected", "servers"]:
         by_site = config.get(area, {}).get("sites")
         if isinstance(by_site, dict):
             for site_id in by_site:
@@ -155,7 +152,6 @@ def validate_config(
     _validate_portainer(config, report, production_preflight=production_preflight)
     _validate_doctor(config, report)
     _validate_rabbitmq(config, report, production_preflight=production_preflight)
-    _validate_recording(config, report, production_preflight=production_preflight)
     _validate_servers(config, report, production_preflight=production_preflight)
     _validate_thresholds(config, report)
     _validate_runtime_environment(config, report, production_preflight=production_preflight)
@@ -271,7 +267,6 @@ def _validate_review_policy(config: dict[str, Any], report: ValidationReport) ->
         "general_notes_enabled",
         "general_note_required",
         "manual_review_acknowledgment_required",
-        "recording_cleanup_acknowledgment_required",
         "reject_allowed",
     ]:
         value = review.get(key)
@@ -888,252 +883,6 @@ def _validate_rabbitmq_connection(
     _validate_positive_integer(connection.get("retry_attempts"), f"{path}.retry_attempts", report)
 
 
-def _validate_recording(
-    config: dict[str, Any],
-    report: ValidationReport,
-    *,
-    production_preflight: bool,
-) -> None:
-    recording = config.get("recording", {})
-    if not isinstance(recording, dict):
-        report.add_error("recording", "must be an object")
-        return
-
-    mode = recording.get("collection_mode")
-    if mode is None:
-        mode = "fixture" if recording.get("fixture_actual") is not None else "live"
-    if is_unresolved_placeholder(mode):
-        return
-    if mode not in RECORDING_SUPPORTED_COLLECTION_MODES:
-        report.add_error("recording.collection_mode", "must be fixture or live")
-        return
-
-    workflow = recording.get("workflow")
-    if not is_unresolved_placeholder(workflow) and workflow not in RECORDING_SUPPORTED_WORKFLOWS:
-        report.add_error(
-            "recording.workflow",
-            "must be existing_device_start_stop",
-        )
-
-    safety = recording.get("safety")
-    if not isinstance(safety, dict):
-        report.add_error("recording.safety", "must be an object")
-        safety = {}
-
-    safety_contract = {
-        "create_device_allowed": False,
-        "delete_device_allowed": False,
-        "state_changing_calls_require_explicit_approval": True,
-        "crash_after_start_requires_recovery": True,
-        "automatic_replay_after_unknown_state": False,
-    }
-    for key, expected in safety_contract.items():
-        value = safety.get(key)
-        if is_unresolved_placeholder(value):
-            continue
-        if not isinstance(value, bool):
-            report.add_error(
-                f"recording.safety.{key}",
-                "must be boolean",
-            )
-        elif value is not expected:
-            report.add_error(
-                f"recording.safety.{key}",
-                f"must be {str(expected).lower()} for the approved safety contract",
-            )
-
-    if mode == "fixture":
-        if not isinstance(recording.get("fixture_actual"), dict):
-            report.add_error(
-                "recording.fixture_actual",
-                "fixture mode requires fixture_actual",
-            )
-
-    if mode == "live" and recording.get("fixture_actual") is not None:
-        report.add_error(
-            "recording.fixture_actual",
-            "live Recording mode must not include fixture fallback data",
-        )
-
-    check_runtime = mode == "live" and production_preflight and _recording_enabled(config)
-
-    manager = recording.get("manager")
-    if not isinstance(manager, dict):
-        report.add_error("recording.manager", "live mode requires a manager object")
-    else:
-        _validate_runtime_value(
-            manager.get("url"),
-            "recording.manager.url",
-            report,
-            required=check_runtime,
-            label="Recording Manager WebApp URL",
-        )
-        selection = manager.get("device_selection")
-        if not isinstance(selection, dict):
-            report.add_error("recording.manager.device_selection", "must be an object")
-        else:
-            existing_only = selection.get("use_existing_device_only")
-            if not is_unresolved_placeholder(existing_only):
-                if not isinstance(existing_only, bool):
-                    report.add_error(
-                        "recording.manager.device_selection.use_existing_device_only",
-                        "must be boolean",
-                    )
-                elif existing_only is not True:
-                    report.add_error(
-                        "recording.manager.device_selection.use_existing_device_only",
-                        "must be true",
-                    )
-            initial_state = selection.get("required_initial_state")
-            if (
-                not is_unresolved_placeholder(initial_state)
-                and initial_state not in RECORDING_INITIAL_STATES
-            ):
-                report.add_error(
-                    "recording.manager.device_selection.required_initial_state",
-                    "must be not_recording",
-                )
-            status = selection.get("no_eligible_device_status")
-            if not is_unresolved_placeholder(status) and status not in VALID_CHECK_STATUSES:
-                report.add_error(
-                    "recording.manager.device_selection.no_eligible_device_status",
-                    "invalid status enum",
-                )
-
-    sites = recording.get("sites")
-    if not isinstance(sites, dict):
-        report.add_error("recording.sites", "must be an object")
-        sites = {}
-    for site_id in _site_ids(config):
-        site = sites.get(site_id)
-        path = f"recording.sites.{site_id}"
-        if not isinstance(site, dict):
-            report.add_error(path, "site observation configuration is required")
-            continue
-
-        webapp = site.get("webapp")
-        if not isinstance(webapp, dict):
-            report.add_error(f"{path}.webapp", "must be an object")
-        else:
-            _validate_runtime_value(
-                webapp.get("url"),
-                f"{path}.webapp.url",
-                report,
-                required=check_runtime,
-                label=f"Recording {site_id} WebApp URL",
-            )
-            capture = webapp.get("capture_baseline_at_test_start")
-            if not is_unresolved_placeholder(capture) and capture is not True:
-                report.add_error(
-                    f"{path}.webapp.capture_baseline_at_test_start",
-                    "must be true",
-                )
-
-        server = site.get("server")
-        if not isinstance(server, dict):
-            report.add_error(f"{path}.server", "must be an object")
-        else:
-            reference = server.get("connection_reference")
-            if not is_unresolved_placeholder(reference) and (
-                not isinstance(reference, str) or not reference.strip()
-            ):
-                report.add_error(
-                    f"{path}.server.connection_reference",
-                    "must be a non-empty connection reference",
-                )
-            capture = server.get("capture_baseline_at_test_start")
-            if not is_unresolved_placeholder(capture) and capture is not True:
-                report.add_error(
-                    f"{path}.server.capture_baseline_at_test_start",
-                    "must be true",
-                )
-
-    validation = recording.get("validation")
-    if not isinstance(validation, dict):
-        report.add_error("recording.validation", "must be an object")
-    else:
-        baseline = validation.get("baseline")
-        if not isinstance(baseline, dict):
-            report.add_error("recording.validation.baseline", "must be an object")
-        elif baseline.get("capture_at_test_start") is not True and not is_unresolved_placeholder(
-            baseline.get("capture_at_test_start")
-        ):
-            report.add_error("recording.validation.baseline.capture_at_test_start", "must be true")
-
-        after_start = validation.get("after_start")
-        if not isinstance(after_start, dict):
-            report.add_error("recording.validation.after_start", "must be an object")
-        else:
-            for key in [
-                "site1_webapp_count_delta",
-                "site2_webapp_count_delta",
-                "site1_server_count_delta",
-                "site2_server_count_delta",
-            ]:
-                value = after_start.get(key)
-                if is_unresolved_placeholder(value):
-                    continue
-                if not isinstance(value, int) or isinstance(value, bool) or value != 1:
-                    report.add_error(f"recording.validation.after_start.{key}", "must be integer 1")
-
-        after_stop = validation.get("after_stop")
-        if not isinstance(after_stop, dict):
-            report.add_error("recording.validation.after_stop", "must be an object")
-        else:
-            for key in [
-                "site1_webapp_must_return_to_baseline",
-                "site2_webapp_must_return_to_baseline",
-                "site1_server_must_return_to_baseline",
-                "site2_server_must_return_to_baseline",
-            ]:
-                value = after_stop.get(key)
-                if not is_unresolved_placeholder(value) and value is not True:
-                    report.add_error(f"recording.validation.after_stop.{key}", "must be true")
-
-    polling = recording.get("polling")
-    if not isinstance(polling, dict):
-        report.add_error("recording.polling", "must be an object")
-    else:
-        _validate_positive_number(
-            polling.get("timeout_seconds"),
-            "recording.polling.timeout_seconds",
-            report,
-        )
-        _validate_positive_number(
-            polling.get("interval_seconds"),
-            "recording.polling.interval_seconds",
-            report,
-        )
-
-    result_policy = recording.get("result_policy")
-    if not isinstance(result_policy, dict):
-        report.add_error(
-            "recording.result_policy",
-            "must be an object",
-        )
-    else:
-        expected_result_policy = {
-            "functional_mismatch_status": "FAIL",
-            "technical_failure_status": "ERROR",
-            "cleanup_failure_status": "ERROR",
-        }
-        for key, expected_status in expected_result_policy.items():
-            value = result_policy.get(key)
-            if is_unresolved_placeholder(value):
-                continue
-            if value != expected_status:
-                report.add_error(
-                    f"recording.result_policy.{key}",
-                    f"must be {expected_status}",
-                )
-        requires_recovery = result_policy.get("cleanup_failure_requires_recovery")
-        if not is_unresolved_placeholder(requires_recovery) and requires_recovery is not True:
-            report.add_error(
-                "recording.result_policy.cleanup_failure_requires_recovery",
-                "must be true",
-            )
-
-
 def _validate_servers(
     config: dict[str, Any],
     report: ValidationReport,
@@ -1396,11 +1145,6 @@ def _portainer_enabled(config: dict[str, Any]) -> bool:
 
 def _rabbitmq_enabled(config: dict[str, Any]) -> bool:
     module = _module_rules(config).get("rabbitmq", {})
-    return bool(module.get("enabled") and module.get("required"))
-
-
-def _recording_enabled(config: dict[str, Any]) -> bool:
-    module = _module_rules(config).get("recording", {})
     return bool(module.get("enabled") and module.get("required"))
 
 

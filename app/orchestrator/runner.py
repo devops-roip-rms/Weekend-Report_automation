@@ -7,7 +7,6 @@ from app.collectors.doctor import DoctorCollector
 from app.collectors.infrastructure import InfrastructureCollector
 from app.collectors.portainer import PortainerCollector
 from app.collectors.rabbitmq import RabbitMQCollector
-from app.collectors.recording import RecordingCollector
 from app.domain import CheckResult, CheckStatus, EvidenceRecord, to_jsonable
 from app.orchestrator.aggregation import aggregate_status
 from app.orchestrator.execution_plan import build_execution_plan
@@ -17,14 +16,12 @@ from app.validators.doctor import DoctorValidator
 from app.validators.infrastructure import InfrastructureValidator
 from app.validators.portainer import PortainerValidator
 from app.validators.rabbitmq import RabbitMQValidator
-from app.validators.recording import RecordingValidator
 from app.validators.site_parity import SiteParityValidator
 
 COLLECTORS: dict[str, Any] = {
     "portainer": PortainerCollector,
     "doctor": DoctorCollector,
     "rabbitmq": RabbitMQCollector,
-    "recording": RecordingCollector,
     "infrastructure": InfrastructureCollector,
 }
 
@@ -32,7 +29,6 @@ VALIDATORS: dict[str, Any] = {
     "portainer": PortainerValidator,
     "doctor": DoctorValidator,
     "rabbitmq": RabbitMQValidator,
-    "recording": RecordingValidator,
     "infrastructure": InfrastructureValidator,
 }
 
@@ -114,12 +110,6 @@ class OrchestratorRunner:
             self._store_result_with_evidence(context, result, parity_basis)
         all_results.extend(parity)
         status = aggregate_status(all_results, context.config)
-        if _recording_recovery_required(all_results):
-            context.repository.mark_recovery_required(
-                context.run_id,
-                "Recording cleanup/restoration requires manual recovery",
-            )
-            return all_results
         context.repository.mark_review_ready(context.run_id, status)
         return all_results
 
@@ -163,10 +153,3 @@ def _if_unavailable_status(config: dict[str, Any], module: str) -> CheckStatus:
     if status == CheckStatus.PASS:
         return CheckStatus.WARNING
     return status
-
-
-def _recording_recovery_required(results: list[CheckResult]) -> bool:
-    return any(
-        result.module == "recording" and result.metadata.get("recovery_required")
-        for result in results
-    )

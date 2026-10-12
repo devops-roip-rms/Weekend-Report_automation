@@ -35,10 +35,6 @@ class ConfigValidationTests(unittest.TestCase):
             config["rabbitmq_expected"]["connections"]["site2"]["user"],
             "fixture-user-2",
         )
-        self.assertEqual(
-            config["recording"]["manager"]["url"],
-            "https://recording-manager.example.invalid",
-        )
 
     def test_fixture_config_is_valid(self):
         report = validate_config(load_fixture_config(), production_preflight=False)

@@ -4,7 +4,7 @@ import json
 from collections import Counter, defaultdict
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -61,7 +61,6 @@ MODULE_NAV = [
     {"id": "portainer", "label": "Portainer"},
     {"id": "doctor", "label": "DOCTOR"},
     {"id": "rabbitmq", "label": "RabbitMQ"},
-    {"id": "recording", "label": "Recording"},
     {"id": "infrastructure", "label": "Infrastructure"},
     {"id": "splunk", "label": "Splunk"},
     {"id": "review", "label": "Review"},
@@ -71,7 +70,6 @@ MODULE_LABELS = {
     "infrastructure": "Infrastructure",
     "portainer": "Portainer",
     "rabbitmq": "RabbitMQ",
-    "recording": "Recording",
     "site_parity": "Site Parity",
     "splunk": "Splunk",
 }
@@ -79,24 +77,6 @@ RABBITMQ_SECTION_RULES = [
     ("Collection", ("rabbitmq.collection",)),
     ("Queues", ("rabbitmq.queue.",)),
     ("Node Resources", ("rabbitmq.node.",)),
-]
-RECORDING_STEPS = [
-    (
-        "device_selection",
-        "Selected existing non-recording device",
-        ("recording.device_selection",),
-    ),
-    (
-        "pre_start_verification",
-        "Verified same device not recording before START",
-        ("recording.pre_start_verification",),
-    ),
-    ("baseline", "Four runtime baselines", ("recording.baseline.",)),
-    ("start_action", "Start recording on same device", ("recording.start_action",)),
-    ("after_start", "All four observations N+1/M+1", ("recording.after_start.",)),
-    ("stop_action", "Stop recording on same device", ("recording.stop_action",)),
-    ("after_stop", "All four observations restored", ("recording.after_stop.",)),
-    ("cleanup", "Cleanup", ("recording.cleanup",)),
 ]
 INFRASTRUCTURE_SECTIONS = [
     ("Reachability", ("infrastructure.ssh.reachable",)),
@@ -256,9 +236,6 @@ def _presentation_context(
         ),
         "rabbitmq_sections": _rabbitmq_sections(
             [result for result in presented_page if result["module"] == "rabbitmq"]
-        ),
-        "recording_workflows": _recording_workflows(
-            [result for result in presented_page if result["module"] == "recording"]
         ),
         "infrastructure_servers": _infrastructure_servers(
             [result for result in presented_page if result["module"] == "infrastructure"]
@@ -547,38 +524,6 @@ def _rabbitmq_sections(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sections
 
 
-def _recording_workflows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if not results:
-        return []
-    steps = []
-    used_ids: set[int | None] = set()
-    for key, label, check_ids in RECORDING_STEPS:
-        step_results = [
-            result
-            for result in results
-            if any(result["check_id"].startswith(check_id) for check_id in check_ids)
-        ]
-        used_ids.update(result["id"] for result in step_results)
-        steps.append(
-            {
-                "key": key,
-                "label": label,
-                "status": _aggregate_presented(step_results),
-                "results": step_results,
-            }
-        )
-    remaining = [result for result in results if result["id"] not in used_ids]
-    return [
-        {
-            "site": None,
-            "label": "Manager-controlled workflow",
-            "status": _aggregate_presented(results),
-            "steps": steps,
-            "remaining": remaining,
-        }
-    ]
-
-
 def _infrastructure_servers(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_server: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for result in results:
@@ -735,7 +680,6 @@ def _summarize_value(value: Any) -> str:
             "checks_performed",
             "count",
             "expected_count",
-            "recording",
             "reviewed",
             "reachable",
             "usable",
@@ -810,6 +754,8 @@ def module_page(
     repo: RepoDep,
     config: ConfigDep,
 ):
+    if module not in MODULES:
+        raise HTTPException(status_code=404, detail="Unknown module")
     if module == "splunk":
         return templates.TemplateResponse(
             request,

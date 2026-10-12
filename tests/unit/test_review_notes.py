@@ -202,12 +202,6 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.assertNotIn("Bindings", rabbitmq.text)
         self.assertNotIn("Node Alarms", rabbitmq.text)
 
-        recording = self.client.get(f"/runs/{run_id}/recording")
-        self.assertEqual(recording.status_code, 200, recording.text)
-        self.assertIn("Four runtime baselines", recording.text)
-        self.assertIn("Selected existing non-recording device", recording.text)
-        self.assertIn("All four observations restored", recording.text)
-
         infrastructure = self.client.get(f"/runs/{run_id}/infrastructure")
         self.assertEqual(infrastructure.status_code, 200, infrastructure.text)
         self.assertIn("Reachability", infrastructure.text)
@@ -555,6 +549,11 @@ class ReviewNoteApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/healthz").status_code, 200)
         run_id = self.make_review_ready_run("WR-20260811-000200")
         self.assertEqual(self.client.get(f"/api/runs/{run_id}/evidence").status_code, 200)
+
+    def test_unsupported_module_page_returns_404(self):
+        run_id = self.make_review_ready_run("WR-20260811-000201")
+        response = self.client.get(f"/runs/{run_id}/recording")
+        self.assertEqual(response.status_code, 404)
 
     def test_final_pdf_route_rejects_unsafe_recorded_path(self):
         run_id = self.make_review_ready_run("WR-20260811-000300")

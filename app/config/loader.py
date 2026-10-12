@@ -21,7 +21,6 @@ ENV_FILE_ORDER = [
     "portainer.env",
     "doctor.env",
     "rabbitmq.env",
-    "recording.env",
     "infrastructure.env",
     "splunk.env",
 ]
@@ -141,7 +140,6 @@ def _deployment_config_from_env(env: Mapping[str, str], rules: dict[str, Any]) -
         "portainer_expected": _load_portainer(env, rules, site_refs),
         "doctor": {"doctor": _load_doctor(env, rules)},
         "rabbitmq_expected": _load_rabbitmq(env, rules, site_refs),
-        "recording": _load_recording(env, rules, site_refs),
         "servers": _load_servers(env, rules, site_refs),
         "splunk_dashboards": _load_splunk(env, rules),
         "manual_db_check": _load_manual_db_check(env),
@@ -278,42 +276,6 @@ def _load_rabbitmq(
         "queues": copy.deepcopy(policy.get("queues", {})),
         "nodes": copy.deepcopy(policy.get("nodes", {})),
         "sites": sites,
-    }
-
-
-def _load_recording(
-    env: Mapping[str, str],
-    rules: dict[str, Any],
-    site_refs: list[tuple[int, str]],
-) -> dict[str, Any]:
-    policy = _mapping_at(rules, "recording")
-    sites: dict[str, Any] = {}
-    for idx, site_id in site_refs:
-        prefix = f"RECORDING_SITE{idx}"
-        sites[site_id] = {
-            "webapp": {
-                "url": _env_string(env, f"{prefix}_WEBAPP_URL"),
-                "capture_baseline_at_test_start": True,
-            },
-            "server": {
-                "connection_reference": _env_string(env, f"{prefix}_SERVER_REFERENCE"),
-                "capture_baseline_at_test_start": True,
-            },
-        }
-    return {
-        "collection_mode": _env_string(env, "RECORDING_COLLECTION_MODE", "live"),
-        "workflow": policy.get("workflow", "existing_device_start_stop"),
-        "safety": copy.deepcopy(policy.get("safety", {})),
-        "manager": {
-            "url": _env_string(env, "RECORDING_MANAGER_WEBAPP_URL"),
-            "device_selection": copy.deepcopy(
-                _mapping_at(policy, "manager").get("device_selection", {})
-            ),
-        },
-        "sites": sites,
-        "validation": copy.deepcopy(policy.get("validation", {})),
-        "polling": copy.deepcopy(policy.get("polling", {})),
-        "result_policy": copy.deepcopy(policy.get("result_policy", {})),
     }
 
 

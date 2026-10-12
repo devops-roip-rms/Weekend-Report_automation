@@ -69,14 +69,6 @@ COMPOSE_ENV_FILE_KEYS = {
         "RABBITMQ_SITE2_TLS_VERIFY",
         "RABBITMQ_SITE2_CA_FILE",
     ],
-    "recording.env": [
-        "RECORDING_COLLECTION_MODE",
-        "RECORDING_MANAGER_WEBAPP_URL",
-        "RECORDING_SITE1_WEBAPP_URL",
-        "RECORDING_SITE1_SERVER_REFERENCE",
-        "RECORDING_SITE2_WEBAPP_URL",
-        "RECORDING_SITE2_SERVER_REFERENCE",
-    ],
     "infrastructure.env": [
         "SITE_COUNT",
         "SITE1_ID",

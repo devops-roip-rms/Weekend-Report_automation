@@ -95,7 +95,7 @@ The worker records:
 - current module;
 - timestamps.
 
-A stale Recording operation is never automatically replayed.
+Stale worker recovery never reuses partial results or automatically replays uncertain operations.
 
 ## 5. Collector / Validator Separation
 
@@ -195,25 +195,7 @@ Actual state comes from the RabbitMQ Management API or fixture actuals.
 
 The validator checks observed queue ready/unacked/total counts and node resource states. It does not validate the removed vhost/exchange/binding topology contract.
 
-### 7.3 Recording
-
-Recording uses an **existing-device** start/stop workflow.
-
-The application must not create/delete devices.
-
-High-level flow:
-
-1. select and verify a suitable existing non-recording device in the Manager WebApp;
-2. collect four runtime baselines from Site 1 WebApp, Site 2 WebApp, Site 1 server, and Site 2 server;
-3. start recording on that same device through the Manager WebApp;
-4. verify all four observations increased by the configured delta;
-5. stop the same device through the Manager WebApp;
-6. verify all four observations returned to baseline;
-7. verify cleanup.
-
-Crash/unknown state after a state-changing action requires `RECOVERY_REQUIRED`.
-
-### 7.4 Infrastructure
+### 7.3 Infrastructure
 
 Infrastructure collection is read-only.
 
@@ -224,13 +206,13 @@ Validation covers:
 - filesystem existence/utilization;
 - Chrony synchronization/source/offset.
 
-### 7.5 DOCTOR
+### 7.4 DOCTOR
 
 DOCTOR API mode uses dynamic service discovery per site. Discovered services are validated independently for health and the two site service sets are compared for parity.
 
 API mode requires a verified endpoint/schema/auth/validation contract. Reviewable service-health issues remain service-level `ERROR` findings and roll the module to `MANUAL_REVIEW`; transport/API/authentication/timeout/schema/collection errors remain blocking `ERROR`s.
 
-### 7.6 Splunk
+### 7.5 Splunk
 
 Splunk is a manual dashboard-review area.
 

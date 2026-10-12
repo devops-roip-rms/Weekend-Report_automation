@@ -61,7 +61,6 @@ weekend-report/
     portainer.env
     doctor.env
     rabbitmq.env
-    recording.env
     infrastructure.env
     splunk.env
 
@@ -186,7 +185,6 @@ deploy/docker/env/app.env
 deploy/docker/env/portainer.env
 deploy/docker/env/doctor.env
 deploy/docker/env/rabbitmq.env
-deploy/docker/env/recording.env
 deploy/docker/env/infrastructure.env
 deploy/docker/env/splunk.env
 ```
@@ -283,7 +281,6 @@ python scripts/validate_config.py `
   --env-file deploy/docker/env/portainer.env `
   --env-file deploy/docker/env/doctor.env `
   --env-file deploy/docker/env/rabbitmq.env `
-  --env-file deploy/docker/env/recording.env `
   --env-file deploy/docker/env/infrastructure.env `
   --env-file deploy/docker/env/splunk.env
 ```
@@ -296,28 +293,13 @@ You can also run:
 
 The runtime server itself does not require Python for normal container operation.
 
-## 11. Current Production Blockers
+## 11. Production Readiness Checks
 
-Before building the final production image, decide what to do with these modules:
+Before building the final production image, complete the real runtime ENV files, provide required
+secret files, run configuration validation, and confirm the target environment can reach the enabled
+read-only integrations.
 
-```text
-DOCTOR
-  live API adapter is not implemented
-
-Recording
-  live collector is intentionally blocked
-```
-
-If these modules remain enabled/required in `rules.yml`, a complete production run cannot be treated
-as fully ready merely because all ENV files were populated.
-
-Production options are:
-
-1. implement and validate the missing contracts before building the final image; or
-2. explicitly disable/non-require unfinished modules in `rules.yml` through an approved policy
-   decision until their implementation is completed.
-
-Do not insert fake ENV values to bypass these blockers.
+Do not insert fake ENV values to bypass unresolved deployment values.
 
 ## 12. Build the Minimal Runtime Bundle
 
@@ -420,7 +402,7 @@ worker
 PostgreSQL uses persistent storage. Evidence also uses persistent storage.
 
 The worker is attached to a non-internal egress network so it can reach configured Portainer,
-RabbitMQ, SSH, DOCTOR, Recording, and other external integration endpoints.
+RabbitMQ, SSH, DOCTOR, and other automated external integration endpoints.
 
 The PostgreSQL backend network remains internal.
 

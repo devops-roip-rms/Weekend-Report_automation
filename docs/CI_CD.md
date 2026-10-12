@@ -16,7 +16,7 @@ scripts/ci.py
 
 The CI platforms orchestrate the same local commands. They do not contain a second implementation of Weekend Report business logic.
 
-The operational Weekend Report remains manually triggered from FastAPI. CI never starts a real production Weekend Report and never performs a real state-changing Recording action.
+The operational Weekend Report remains manually triggered from FastAPI. CI never starts a real production Weekend Report.
 
 ## 2. Current Python / Container Baseline
 
@@ -575,7 +575,6 @@ Standard CI must not receive:
 - production SSH private keys;
 - production DB validation credentials;
 - DOCTOR credentials;
-- Recording credentials;
 - production evidence.
 
 CI uses fixture configuration and disposable infrastructure only.
