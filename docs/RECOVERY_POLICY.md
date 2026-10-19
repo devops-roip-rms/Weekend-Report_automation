@@ -98,3 +98,14 @@ Production owner approval is required for:
 
 Unknown production values remain controlled placeholders and continue to block production
 preflight.
+
+## Runtime site count
+
+Recovery policy applies equally to one-site and multi-site deployments. `SITE_COUNT`
+controls the independent site inventories; only multi-site runs execute parity afterward.
+Omitting parity for one site is normal execution and does not create a recovery condition
+or blocking SKIPPED finding. Technical collection errors remain attached to the affected
+site and retain their existing blocking behavior. Parity never clears independent health
+failures. Splunk and manual DB review requirements are unchanged. Increasing sites or
+servers increases sequential collection time; review the configured heartbeat timeout
+against expected module duration without bypassing stale-worker protection.

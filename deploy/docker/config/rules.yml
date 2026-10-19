@@ -27,6 +27,9 @@ aggregation:
   skipped_blocks: true
   warning_overall_status: WARNING
 
+# Applied after independent validation only when SITE_COUNT > 1.
+# Runtime site IDs come from ENV. Allowed differences must cover all participating IDs;
+# target exceptions cover only that service. See docs/CONFIGURATION.md for examples.
 parity:
   - enabled: true
     module: portainer

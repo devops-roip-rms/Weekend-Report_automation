@@ -205,7 +205,7 @@ It does not contain:
 - image-comparison modes;
 - hardcoded replica counts.
 
-The application discovers Docker Swarm services dynamically from both sites.
+The application discovers Docker Swarm services dynamically from every runtime site.
 
 For every discovered service it validates the actual site state, including desired/running replicas,
 health when available, image traceability, and task/service state. Cross-site parity is then
@@ -235,7 +235,7 @@ Portainer task-state and parity policy belongs in `rules.yml`.
 
 ## 10. RabbitMQ
 
-RabbitMQ uses the Management HTTP API in read-only mode for both sites.
+RabbitMQ uses the Management HTTP API in read-only mode for every runtime site.
 
 The collector performs only:
 
@@ -393,7 +393,8 @@ DOCTOR_SITE2_API_URL=<TBD>
 There is no configured or hardcoded production service inventory.
 
 For each site, the application obtains the current service state from the configured DOCTOR API.
-The discovered service sets and health states are then validated and compared across the two sites.
+Health is validated independently at each site. Discovered service sets are compared across all
+runtime sites only when more than one site is configured.
 
 Technical API, authentication, transport, and schema failures remain blocking errors.
 
@@ -401,8 +402,8 @@ Eligible service-health findings may enter the configured manual-review path. Ma
 rewrite the underlying health error to PASS, and cross-site parity cannot make two identically
 unhealthy sites healthy.
 
-The deployment scanner treats unresolved DOCTOR_SITE1_API_URL and
-DOCTOR_SITE2_API_URL values as configuration that must be supplied before deployment.
+Every configured `DOCTOR_SITE<N>_API_URL` must be supplied before production deployment;
+unresolved values are rejected by production configuration preflight.
 
 ## 12. Splunk
 
@@ -551,3 +552,94 @@ The deployment helper scan can also be run after real ENV files exist:
 
 A production deployment is not ready merely because ENV syntax is valid. Runtime values, credentials,
 secrets, evidence policy, and review semantics must also be approved for the target environment.
+
+## Dynamic site inventory and parity
+
+`SITE_COUNT=N` controls runtime site inventory; N must be a positive integer. Numbered
+definitions run consecutively from 1 through N. Zero, negative/noninteger counts,
+zero-based or zero-padded numbers, malformed numbered names, and site numbers beyond N
+are rejected. Missing identities or required module values fail validation. IDs must be
+non-empty and unique. Display names are required; purpose defaults to `weekend_report_site`
+when omitted. Unresolved placeholders still follow the existing production preflight policy.
+
+The sample files contain two sites for readability. For one site, remove all site 2 blocks
+and use `SITE_COUNT=1`. For three sites, add site 3 blocks to each relevant ENV file and use
+`SITE_COUNT=3`. There is no application-defined maximum number of sites. Use these patterns
+for each site number N in the inventory (angle brackets denote substitution, not literal ENV names):
+
+| ENV file | Numbered variables |
+| --- | --- |
+| infrastructure.env | `SITE<N>_ID`, `SITE<N>_DISPLAY_NAME`, `SITE<N>_PURPOSE` |
+| portainer.env | `PORTAINER_SITE<N>_URL`, `PORTAINER_SITE<N>_ENDPOINT_ID`, `PORTAINER_SITE<N>_TOKEN`, `PORTAINER_SITE<N>_TLS_VERIFY`, `PORTAINER_SITE<N>_CA_FILE` |
+| doctor.env | `DOCTOR_SITE<N>_API_URL` |
+| rabbitmq.env | `RABBITMQ_SITE<N>_URL`, `RABBITMQ_SITE<N>_USER`, `RABBITMQ_SITE<N>_PASSWORD`, `RABBITMQ_SITE<N>_TLS_VERIFY`, `RABBITMQ_SITE<N>_CA_FILE` |
+| infrastructure.env | `SITE<N>_SERVER_COUNT`, `SITE<N>_SERVER_<M>_ID`, `SITE<N>_SERVER_<M>_HOST`, `SITE<N>_SERVER_<M>_PORT`, `SITE<N>_SERVER_<M>_REQUIRED` |
+
+Each site's server count independently controls M from 1 through that count. Server IDs
+must be unique within their site; the same server ID can exist in different sites. Optional
+per-server Chrony overrides are `SITE<N>_SERVER_<M>_CHRONY_TIMEZONE` and
+`SITE<N>_SERVER_<M>_CHRONY_SOURCE`. Existing Portainer environment/API/auth overrides and
+RabbitMQ required/timeout/retry overrides follow the same numbering.
+
+DOCTOR builds `doctor.doctor.api.sites[site_id] = endpoint_url` in runtime inventory order.
+The existing `DOCTOR_SITE1_API_URL` and `DOCTOR_SITE2_API_URL` remain valid external names.
+Every endpoint is collected independently; transport/auth/API/schema errors are attached
+to the affected site, while other sites still receive validation. Health and manual-review
+semantics are unchanged.
+
+### Execution and comparison
+
+1. Validate every configured site's independent module health.
+2. With one site, omit parity execution, findings, and evidence entirely. Review and approval
+   still require the actual health checks, Splunk reviews, notes, and manual DB requirements.
+3. With multiple sites, evaluate each enabled parity rule after independent validation.
+   Portainer compares service presence, desired/running/healthy replicas, image, and service
+   state. DOCTOR compares service presence only. RabbitMQ has no added parity policy.
+
+For each module/field, collect a normalized map of service name to observed field value
+for every runtime site. Compare all maps to the first site's map using value equality;
+the first site is only a comparison reference, not an expected-health authority. Matching
+maps PASS. Unallowed mismatches use `mismatch_status` (FAIL in the checked-in policy).
+Missing or unreliable field data produces ERROR, never a fabricated match. Empty discovery
+remains a collection error under existing policy. One result per rule/field includes all
+site/value maps and each mismatched service's presence/value on every site, avoiding pairwise
+duplicate findings. Original independent failures are retained even when parity passes.
+
+### Allowed differences
+
+`allowed_differences` keeps its existing list syntax and accepts arbitrary runtime site IDs.
+Unknown site references are configuration errors. Each applicable exception must explicitly
+cover **all** participating sites. Adding a site therefore requires extending any exception
+that should still apply; an incomplete exception does not match.
+
+For a single service, use scalar expected values per site:
+
+```yaml
+allowed_differences:
+  - field: image
+    target: api
+    site_values:
+      primary: api:v5
+      secondary: api:v5
+      recovery: api:v4
+```
+
+The IDs above must match the configured runtime IDs. To allow a missing service explicitly,
+use `field: service_presence`, the service `target`, and `true` on sites where it exists and
+`null` on sites where it is absent. For an entire field map, omit `target` and supply complete
+service/value maps under every site ID:
+
+```yaml
+allowed_differences:
+  - field: image
+    site_values:
+      primary: {api: 'api:v5', worker: 'worker:v2'}
+      secondary: {api: 'api:v5', worker: 'worker:v2'}
+      recovery: {api: 'api:v4', worker: 'worker:v2'}
+```
+
+`field` may be omitted to retain the existing rule-field default. Prefer explicit fields.
+A complete map exception must match exactly. Target exceptions may combine, but every
+mismatched target must be explicitly covered. A target exception no longer accidentally
+excuses unrelated mismatches elsewhere in the same field. Neither form changes health
+findings or permits unreliable collection data to pass.

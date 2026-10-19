@@ -314,7 +314,7 @@ ERROR:
 
 ## 6. DOCTOR
 
-API mode discovers the complete service inventory returned by each site dynamically. Every discovered service is validated independently, and the two discovered service sets must match.
+API mode discovers the complete service inventory returned by each site dynamically. Every discovered service is validated independently, and the discovered service sets must match across all runtime sites when there is more than one site.
 
 ### `doctor.collection`
 
@@ -337,8 +337,8 @@ Only explicitly marked unhealthy/missing service-health findings are reviewable 
 ### `doctor.module_status`
 
 PASS:
-- all discovered services are healthy on both sites;
-- both sites expose matching discovered service inventories.
+- all discovered services are healthy on every runtime site;
+- all sites expose matching discovered service inventories when parity applies.
 
 MANUAL_REVIEW:
 - one or more service-level health findings are reviewable health issues.
@@ -644,3 +644,21 @@ image-id.txt
 ```
 
 The SHA-256 must be verified after offline transfer before loading/deployment.
+
+## Dynamic sites and parity results
+
+All independent Portainer, DOCTOR, RabbitMQ, and Infrastructure checks apply to each runtime
+site from `SITE_COUNT`. Single-site deployments omit parity entirely: no parity PASS, FAIL,
+ERROR, SKIPPED, or MANUAL_REVIEW result is emitted merely for non-applicability. They can
+be approved when actual checks and review requirements pass. Splunk and manual DB review
+remain independent of site count.
+
+With two or more sites, parity runs after independent checks. Portainer fields remain
+`service_presence`, `desired_replicas`, `running_replicas`, `healthy_replicas`, `image`, and
+`service_state`; DOCTOR uses `service_presence`. No RabbitMQ parity is added. Each field
+compares service/value maps across all sites. Equal or fully allowed differences PASS;
+unallowed mismatches FAIL under default policy; unavailable reliable data produces ERROR.
+Evidence includes all participating IDs, observed maps, and per-service differences.
+Independent health failures are never changed by parity, including identically unhealthy
+sites. DOCTOR technical failures block approval while unaffected sites are still checked.
+Explicit allowed-difference syntax and scope are documented in CONFIGURATION.md.

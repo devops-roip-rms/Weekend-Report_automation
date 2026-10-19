@@ -119,12 +119,20 @@ def validate_config(
                 report.add_error(f"sites.sites[{idx}]", "site must be an object")
                 continue
             site_id = site.get("id")
-            if not site_id:
+            if not isinstance(site_id, str) or not site_id.strip():
                 report.add_error(f"sites.sites[{idx}].id", "site id is required")
             elif site_id in seen:
                 report.add_error(f"sites.sites[{idx}].id", f"duplicate site id {site_id!r}")
             else:
                 seen.add(site_id)
+            for field_name in ("display_name", "purpose"):
+                value = site.get(field_name)
+                if not is_unresolved_placeholder(value) and (
+                    not isinstance(value, str) or not value.strip()
+                ):
+                    report.add_error(
+                        f"sites.sites[{idx}].{field_name}", "must be a non-empty string"
+                    )
 
     modules = _module_rules(config)
     for module_name, module in modules.items():
@@ -225,10 +233,10 @@ def _validate_parity(config: dict[str, Any], report: ValidationReport) -> None:
                 f"{path}.sites",
                 "must not be configured in rules; parity uses runtime SITE*_ID values",
             )
-        if len(site_ids) != 2:
+        if not site_ids:
             report.add_error(
                 path,
-                "enabled parity requires exactly two runtime sites from SITE_COUNT/SITE*_ID",
+                "parity requires at least one runtime site from SITE_COUNT/SITE*_ID",
             )
         mismatch_status = rule.get("mismatch_status")
         if isinstance(mismatch_status, str) and mismatch_status in UNRESOLVED_PLACEHOLDERS:
@@ -256,6 +264,13 @@ def _validate_parity(config: dict[str, Any], report: ValidationReport) -> None:
                     f"{path}.allowed_differences[{allow_idx}].site_values",
                     "must map site IDs to explicit expected parity values",
                 )
+            else:
+                for site_id in site_values:
+                    if site_id not in site_ids:
+                        report.add_error(
+                            f"{path}.allowed_differences[{allow_idx}].site_values.{site_id}",
+                            "unknown runtime site reference",
+                        )
 
 
 def _validate_review_policy(config: dict[str, Any], report: ValidationReport) -> None:
@@ -612,12 +627,20 @@ def _validate_doctor(config: dict[str, Any], report: ValidationReport) -> None:
     if not isinstance(api, dict):
         report.add_error("doctor.doctor.api", "api mode requires an api object")
     else:
-        for field_name in ["site1_url", "site2_url"]:
-            value = api.get(field_name)
-            if is_unresolved_placeholder(value):
-                continue
-            if not isinstance(value, str) or not value.strip():
-                report.add_error(f"doctor.doctor.api.{field_name}", "must be a non-empty string")
+        site_urls = api.get("sites")
+        if not isinstance(site_urls, dict):
+            report.add_error("doctor.doctor.api.sites", "must map runtime site IDs to API URLs")
+        else:
+            for site_id in set(site_urls) - _site_ids(config):
+                report.add_error(f"doctor.doctor.api.sites.{site_id}", "unknown site reference")
+            for site_id in _site_ids(config):
+                value = site_urls.get(site_id)
+                if is_unresolved_placeholder(value):
+                    continue
+                if not isinstance(value, str) or not value.strip():
+                    report.add_error(
+                        f"doctor.doctor.api.sites.{site_id}", "must be a non-empty API URL"
+                    )
 
     validation = doctor.get("validation")
     if not isinstance(validation, dict):

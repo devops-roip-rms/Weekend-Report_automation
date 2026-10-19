@@ -299,3 +299,20 @@ See:
 - `docs/RECOVERY_POLICY.md`
 - `docs/VALIDATION_CATALOG.md`
 
+## Dynamic runtime sites
+
+`SITE_COUNT=N` defines the runtime inventory, where N is any positive integer.
+One-site deployments and multi-site deployments use the same application. Define
+`SITE<N>_ID`, `SITE<N>_DISPLAY_NAME`, and `SITE<N>_PURPOSE` for each site from 1 through N.
+IDs must be non-empty and unique. Module-specific numbered ENV variables use the same
+number: for example, `DOCTOR_SITE3_API_URL` belongs to `SITE3_ID`.
+
+Every site receives independent Portainer, DOCTOR, RabbitMQ, and Infrastructure validation.
+Only when `SITE_COUNT > 1` does configured cross-site parity run afterward. A single-site
+run produces no parity result, blocking SKIPPED status, or parity evidence and can be
+approved once its actual checks and review requirements pass. Parity never overrides
+independent site health. Splunk and manual DB review remain independent of site count.
+
+The checked-in two-site examples remain valid. Add or remove numbered blocks in every
+module ENV file to match `SITE_COUNT`; no code change or fixed maximum inventory is needed.
+See [configuration patterns and allowed differences](docs/CONFIGURATION.md#dynamic-site-inventory-and-parity).

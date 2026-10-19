@@ -65,7 +65,7 @@ def load_config_dir(
     if not rules_path.exists():
         raise ConfigError("Missing required configuration file: rules.yml")
 
-    env_map = {str(key): str(value) for key, value in (env or os.environ).items()}
+    env_map = {str(key): str(value) for key, value in (os.environ if env is None else env).items()}
     rules = _load_text(rules_path)
     data: dict[str, Any] = {
         "_config_dir": str(root),
@@ -138,7 +138,7 @@ def _deployment_config_from_env(env: Mapping[str, str], rules: dict[str, Any]) -
     return {
         "sites": {"sites": sites},
         "portainer_expected": _load_portainer(env, rules, site_refs),
-        "doctor": {"doctor": _load_doctor(env, rules)},
+        "doctor": {"doctor": _load_doctor(env, rules, site_refs)},
         "rabbitmq_expected": _load_rabbitmq(env, rules, site_refs),
         "servers": _load_servers(env, rules, site_refs),
         "splunk_dashboards": _load_splunk(env, rules),
@@ -146,8 +146,50 @@ def _deployment_config_from_env(env: Mapping[str, str], rules: dict[str, Any]) -
     }
 
 
+def _validate_numbered_sites(env: Mapping[str, str], count: int) -> None:
+    """Reject misspelled or out-of-inventory numbered settings instead of ignoring them."""
+    suffixes = {
+        "PORTAINER_": {
+            "URL", "ENDPOINT_ID", "TOKEN", "TLS_VERIFY", "CA_FILE",
+            "ENVIRONMENT_TYPE", "API_CONTRACT", "AUTH_TYPE",
+        },
+        "DOCTOR_": {"API_URL"},
+        "RABBITMQ_": {
+            "URL", "USER", "PASSWORD", "TLS_VERIFY", "CA_FILE", "REQUIRED",
+            "TIMEOUT_SECONDS", "RETRY_ATTEMPTS",
+        },
+    }
+    for name in env:
+        if name == "SITE_COUNT":
+            continue
+        if not name.startswith(("SITE", "PORTAINER_SITE", "DOCTOR_SITE", "RABBITMQ_SITE")):
+            continue
+        match = re.fullmatch(r"(PORTAINER_|DOCTOR_|RABBITMQ_)?SITE([1-9][0-9]*)_(.+)", name)
+        if match is None:
+            raise ConfigError(f"{name}: malformed numbered site variable")
+        prefix, number, suffix = match.groups()
+        if int(number) > count:
+            raise ConfigError(f"{name}: site number exceeds SITE_COUNT")
+        if prefix:
+            valid = suffix in suffixes[prefix]
+        else:
+            valid = suffix in {"ID", "DISPLAY_NAME", "PURPOSE", "SERVER_COUNT"}
+            server = re.fullmatch(
+                r"SERVER_([1-9][0-9]*)_(ID|HOST|PORT|REQUIRED|CHRONY_TIMEZONE|CHRONY_SOURCE)",
+                suffix,
+            )
+            if server:
+                server_count = _env_int(env, f"SITE{number}_SERVER_COUNT", default=0, min_value=0)
+                if int(server[1]) > server_count:
+                    raise ConfigError(f"{name}: server number exceeds SITE{number}_SERVER_COUNT")
+                valid = True
+        if not valid:
+            raise ConfigError(f"{name}: malformed numbered site variable")
+
+
 def _load_sites(env: Mapping[str, str]) -> list[tuple[int, dict[str, Any]]]:
-    count = _env_int(env, "SITE_COUNT", default=0, min_value=0)
+    count = _env_int(env, "SITE_COUNT", default=0, min_value=1)
+    _validate_numbered_sites(env, count)
     sites: list[tuple[int, dict[str, Any]]] = []
     for idx in range(1, count + 1):
         sites.append(
@@ -219,13 +261,19 @@ def _load_portainer(
     }
 
 
-def _load_doctor(env: Mapping[str, str], rules: dict[str, Any]) -> dict[str, Any]:
+def _load_doctor(
+    env: Mapping[str, str],
+    rules: dict[str, Any],
+    site_refs: list[tuple[int, str]],
+) -> dict[str, Any]:
     policy = _mapping_at(rules, "doctor")
     return {
         "mode": _env_string(env, "DOCTOR_MODE", "api"),
         "api": {
-            "site1_url": _env_string(env, "DOCTOR_SITE1_API_URL"),
-            "site2_url": _env_string(env, "DOCTOR_SITE2_API_URL"),
+            "sites": {
+                site_id: _env_string(env, f"DOCTOR_SITE{idx}_API_URL")
+                for idx, site_id in site_refs
+            },
         },
         "validation": copy.deepcopy(policy.get("validation", {})),
         "manual_review": copy.deepcopy(policy.get("manual_review", {})),

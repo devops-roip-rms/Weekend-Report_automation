@@ -524,3 +524,23 @@ RUNTIME SERVER
 ```
 
 This is the supported target deployment model for the project.
+
+## Deploying one or multiple sites
+
+Set `SITE_COUNT` in `env/infrastructure.env` to any positive number. The two-site examples
+are samples, not a requirement. For N sites, configure identities, module endpoints, and
+server inventories numbered 1 through N across the ENV files. Remove blocks above N when
+reducing the inventory; stale or malformed numbered entries fail configuration loading.
+`DOCTOR_SITE<N>_API_URL` now supports the same inventory as Portainer, RabbitMQ, and SSH.
+The interactive `scripts/deployment/configure-infrastructure-env.ps1` helper prompts for
+the site count (defaulting to the existing count), site identities, and each site's server
+count. It writes the chosen inventory and reminds you to align the other module ENV files.
+See CONFIGURATION.md for the complete numbered-variable patterns and optional settings.
+
+Run configuration preflight after changing inventory and extend allowed-difference maps to
+all participating runtime IDs. One-site deployments run independent checks and can be
+approved without parity. Multi-site deployments run configured parity after independent
+health validation; a parity PASS cannot clear a health failure. Splunk, manual DB review,
+CSRF, private-key SSH, strict known_hosts, and existing TLS requirements are unchanged.
+Collection is sequential, so account for additional endpoint/server latency when sizing
+worker resources and reviewing the existing stale-worker timeout policy.

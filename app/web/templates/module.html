@@ -43,11 +43,35 @@
   <p class="inline-status" data-review-status aria-live="polite"></p>
 </section>
 
+<section class="panel">
+  <div class="panel-heading"><h2>Independent Site Status</h2></div>
+  <div class="comparison-grid">
+    {% for site in module_site_summaries %}
+      <div class="comparison-site">
+        <strong>{{ site.label }}</strong>
+        {{ ui.status_badge(site.status) }}
+        <p>{{ site.result_count }} recorded checks</p>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% if module_parity_results %}
+<section class="panel" data-cross-site-parity>
+  <div class="panel-heading"><h2>Cross-Site Parity</h2></div>
+  <div class="result-stack">
+    {% for result in module_parity_results %}
+      {{ ui.result_card(result, run.run_id, true) }}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 {% if module == "portainer" and portainer_services %}
 <section class="panel">
   <div class="panel-heading">
     <div>
-      <p class="eyebrow">Two-Site Comparison</p>
+      <p class="eyebrow">Site Health</p>
       <h2>Portainer Services</h2>
     </div>
   </div>
@@ -61,7 +85,6 @@
           </div>
           <div class="service-badges">
             {{ ui.status_badge(service.status) }}
-            <span class="parity-pill">Parity {{ ui.status_badge(service.parity_status) }}</span>
           </div>
         </div>
         <div class="comparison-grid">
@@ -181,7 +204,7 @@
     <article class="panel status-left status-left-{{ server.status|lower|replace('_', '-') }}">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">Server</p>
+          <p class="eyebrow">{{ server.site_label }} / Server</p>
           <h2>{{ server.server }}</h2>
         </div>
         {{ ui.status_badge(server.status) }}

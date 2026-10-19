@@ -9,7 +9,7 @@ from app.collectors.portainer import PortainerCollector
 from app.collectors.rabbitmq import RabbitMQCollector
 from app.domain import CheckResult, CheckStatus, EvidenceRecord, to_jsonable
 from app.orchestrator.aggregation import aggregate_status
-from app.orchestrator.execution_plan import build_execution_plan
+from app.orchestrator.execution_plan import build_execution_plan, parity_applicable
 from app.orchestrator.run_context import RunContext
 from app.time_utils import iso_now
 from app.validators.doctor import DoctorValidator
@@ -96,19 +96,22 @@ class OrchestratorRunner:
             for result in results:
                 self._store_result_with_evidence(context, result, raw_evidence)
             all_results.extend(results)
-        parity_basis = context.evidence.write_json(
-            context.run_id,
-            "site_parity",
-            None,
-            "raw-parity-input.json",
-            {"results": [to_jsonable(result) for result in all_results]},
-            evidence_type="raw_collector",
-        )
-        context.repository.add_evidence(parity_basis)
-        parity = SiteParityValidator().validate({"results": all_results}, context.config, context)
-        for result in parity:
-            self._store_result_with_evidence(context, result, parity_basis)
-        all_results.extend(parity)
+        if parity_applicable(context.config):
+            parity_basis = context.evidence.write_json(
+                context.run_id,
+                "site_parity",
+                None,
+                "raw-parity-input.json",
+                {"results": [to_jsonable(result) for result in all_results]},
+                evidence_type="raw_collector",
+            )
+            context.repository.add_evidence(parity_basis)
+            parity = SiteParityValidator().validate(
+                {"results": all_results}, context.config, context
+            )
+            for result in parity:
+                self._store_result_with_evidence(context, result, parity_basis)
+            all_results.extend(parity)
         status = aggregate_status(all_results, context.config)
         context.repository.mark_review_ready(context.run_id, status)
         return all_results

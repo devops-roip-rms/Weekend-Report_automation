@@ -190,7 +190,7 @@ class ReviewNoteApiTests(unittest.TestCase):
 
         portainer = self.client.get(f"/runs/{run_id}/portainer")
         self.assertEqual(portainer.status_code, 200, portainer.text)
-        self.assertIn("Two-Site Comparison", portainer.text)
+        self.assertIn("Site Health", portainer.text)
         self.assertIn("Detailed service checks", portainer.text)
         self.assertIn("Reviewer note for this check", portainer.text)
 
