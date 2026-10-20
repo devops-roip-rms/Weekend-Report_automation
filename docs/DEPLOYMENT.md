@@ -537,6 +537,14 @@ the site count (defaulting to the existing count), site identities, and each sit
 count. It writes the chosen inventory and reminds you to align the other module ENV files.
 See CONFIGURATION.md for the complete numbered-variable patterns and optional settings.
 
+Each configured infrastructure server in each site runs `df -h | grep mapper` over
+strict private-key SSH. Mapper discovery is dynamic: do not configure device names
+in ENV or require a `/` mount. The versioned `rules.yml` policy evaluates every mapper
+filesystem independently: < 70% PASS, >= 70% and < 80% WARNING, >= 80% FAIL.
+No matches (empty output or grep exit 1 without diagnostics) is FAIL; technical SSH,
+command, timeout, or parsing failures are ERROR. Review device, mountpoint, and usage
+in the existing per-site/server infrastructure results and evidence.
+
 Run configuration preflight after changing inventory and extend allowed-difference maps to
 all participating runtime IDs. One-site deployments run independent checks and can be
 approved without parity. Multi-site deployments run configured parity after independent

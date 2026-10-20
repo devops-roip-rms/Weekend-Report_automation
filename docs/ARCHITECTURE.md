@@ -206,8 +206,18 @@ Live SSH remains blocked until server inventory, authentication, host-key policy
 
 Validation covers:
 
-- filesystem existence/utilization;
+- dynamic mapper filesystem discovery/utilization;
 - Chrony synchronization/source/offset.
+
+The versioned filesystem policy runs `df -h | grep mapper` via strict SSH on every
+configured server in every site. Each discovered device/mountpoint gets a separate
+`CheckResult` with utilization and status; `/` is not required and there is no configured
+mapper inventory. Usage < 70% is PASS, >= 70% and < 80% is WARNING, and >= 80% is FAIL.
+Empty successful output or grep exit 1 without diagnostics means no mapper filesystems
+were found and produces FAIL. SSH, timeout, command, or parsing failures produce ERROR.
+Raw command output and exit metadata are retained as collection evidence; normalized
+results retain filesystem, mountpoint, and utilization. Existing UI/report grouping
+keeps server and site context for every filesystem.
 
 ### 7.4 DOCTOR
 

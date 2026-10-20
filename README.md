@@ -268,7 +268,11 @@ The framework supports the following module boundaries, but real environment ena
 
 - Portainer: read-only Docker Swarm service discovery, independent site health, and cross-site parity.
 - RabbitMQ: read-only Management API queue and node-health validation.
-- Infrastructure: read-only SSH/command collection for root-filesystem usage and Chrony/NTP state.
+- Infrastructure: read-only SSH runs `df -h | grep mapper` on every configured server in
+  every site. Every discovered mapper filesystem is checked independently; no device
+  inventory or `/` mount is required. Usage below 70% is PASS, >= 70% and < 80% is
+  WARNING, and >= 80% is FAIL. No matches (grep exit 1 with no diagnostics) is FAIL;
+  technical collection or parsing failures are ERROR. Chrony/NTP checks are unchanged.
 - DOCTOR: dynamic cross-site service validation and live Health Checks UI `doctor-api` collection are implemented.
 - Splunk: human dashboard review.
 

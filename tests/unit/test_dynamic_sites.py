@@ -364,7 +364,7 @@ class DynamicSitesTests(unittest.TestCase):
                 self.assertEqual(len({host for host, _ in calls}), count * 2)
                 ssh = Mock(spec=SSHExecutor)
                 outputs = {
-                    "df -h /": "Filesystem Size Used Avail Use% Mounted on\n/dev/sda 1G 0 1G 20% /",
+                    "df -h | grep mapper": "/dev/mapper/vg-data 1G 0 1G 20% /data",
                     "timedatectl show -p Timezone --value": "UTC",
                     "chronyc tracking": "System time : 0.001 seconds slow of NTP time\n"
                     "Leap status : Normal",

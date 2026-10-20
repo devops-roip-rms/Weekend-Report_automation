@@ -155,7 +155,7 @@ Write-Host "Weekend Report - Infrastructure configuration"
 Write-Host "============================================="
 Write-Host ""
 Write-Host "This config supports any positive number of sites and servers per site."
-Write-Host "The root filesystem check and SSH/Chrony thresholds remain in rules.yml."
+Write-Host "Dynamic mapper filesystem checks and SSH/Chrony thresholds remain in rules.yml."
 Write-Host ""
 
 $existingCount = Get-ExistingEnvValue $EnvPath "SITE_COUNT" "2"

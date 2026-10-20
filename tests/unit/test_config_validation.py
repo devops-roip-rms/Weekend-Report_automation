@@ -167,8 +167,8 @@ class ConfigValidationTests(unittest.TestCase):
             server["filesystems"],
             [
                 {
-                    "path": "/",
-                    "command": "df -h /",
+                    "match": "mapper",
+                    "command": "df -h | grep mapper",
                     "warning_percent": 70,
                     "critical_percent": 80,
                     "required": True,

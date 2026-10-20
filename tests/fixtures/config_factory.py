@@ -203,7 +203,7 @@ INFRASTRUCTURE_SITES = {
         "servers": {
             "srv1": {
                 "reachable": True,
-                "df": "Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 100G 20G 80G 20% /",
+                "df": "/dev/mapper/vg-root 100G 20G 80G 20% /",
                 "chrony": {
                     "synchronized": True,
                     "source": "fixture-ntp",
@@ -217,7 +217,7 @@ INFRASTRUCTURE_SITES = {
         "servers": {
             "srv2": {
                 "reachable": True,
-                "df": "Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 100G 20G 80G 20% /",
+                "df": "/dev/mapper/vg-root 100G 20G 80G 20% /",
                 "chrony": {
                     "synchronized": True,
                     "source": "fixture-ntp",

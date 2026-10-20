@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,6 +22,7 @@ from app.domain import (
 from app.evidence.manager import EvidenceManager
 from app.orchestrator.run_context import RunContext
 from app.orchestrator.runner import OrchestratorRunner
+from app.reporting.final_pdf import _result_lines
 from app.reporting.html import render_final_html
 from app.reporting.snapshot import finalize_run
 from app.review.finalization import FinalizationReadinessError
@@ -175,6 +177,83 @@ class DynamicSiteWorkflowTests(unittest.TestCase):
         self.run_config(config, run_id)
         response = self.client(config).get(f"/runs/{run_id}/infrastructure")
         self.assertEqual(response.text.count("<h2>shared-name</h2>"), 3)
+
+
+    def test_multiple_mappers_survive_ui_evidence_and_finalization_per_site(self):
+        config = dynamic_config(3)
+        for index in range(1, 4):
+            site = f"region-{index}"
+            server = config["servers"]["fixture_actual"]["sites"][site]["servers"][f"srv{index}"]
+            # No root mount; every site discovers two mapper filesystems.
+            usage = (40, 70, 85)[index - 1]
+            server["df"] = (
+                f"/dev/mapper/site{index}-data 100G 40G 60G 40% /data\n"
+                f"/dev/mapper/site{index}-var 100G 40G 60G {usage}% /var\n"
+            )
+        run_id = "WR-20261020-000001"
+        results = self.run_config(config, run_id)
+        filesystems = [r for r in results if r.check_id == "infrastructure.filesystem.utilization"]
+        self.assertEqual(len(filesystems), 6)
+        self.assertEqual(
+            [r.status for r in filesystems],
+            [CheckStatus.PASS, CheckStatus.PASS, CheckStatus.PASS,
+             CheckStatus.WARNING, CheckStatus.PASS, CheckStatus.FAIL],
+        )
+        self.assertEqual(self.repo.get_run(run_id).automation_status, CheckStatus.FAIL)
+        response = self.client(config).get(f"/runs/{run_id}/infrastructure")
+        self.assertEqual(response.status_code, 200)
+        for index in range(1, 4):
+            self.assertIn(f"Region {index}", response.text)
+            self.assertIn(f"<h2>srv{index}</h2>", response.text)
+        for result in filesystems:
+            self.assertIn(result.message, response.text)
+            self.assertIn(f"status-{result.status.value.lower()}", response.text)
+            normalized = next(
+                e for e in self.repo.list_evidence(run_id)
+                if e.result_id == result.id and e.evidence_type == "normalized_result"
+            )
+            saved = json.loads((self.evidence.root / normalized.path).read_text())
+            self.assertEqual(saved["result"]["actual"], result.actual)
+            self.assertEqual(saved["result"]["site"], result.site)
+            self.assertEqual(saved["result"]["target"], result.target)
+        raw = next(
+            e for e in self.repo.list_evidence(run_id)
+            if e.module == "infrastructure" and e.evidence_type == "raw_collector"
+        )
+        collected = json.loads((self.evidence.root / raw.path).read_text())
+        self.assertEqual(collected, config["servers"]["fixture_actual"])
+        self.complete_review(config, run_id)
+        with self.assertRaises(FinalizationReadinessError):
+            finalize_run(
+                self.repo, self.evidence, config, run_id, "reviewer", ReviewDecision.APPROVE
+            )
+        manual = config["manual_db_check"]
+        record_manual_db_review(self.repo, ManualDBReview(
+            run_id=run_id, display_name=manual["display_name"],
+            script_path=manual["script_path"], result=ManualDBReviewResult.FAIL,
+            comment="Manual check failed; reject the report.", reviewer="reviewer",
+        ))
+        snapshot = finalize_run(
+            self.repo, self.evidence, config, run_id, "reviewer", ReviewDecision.REJECT
+        )
+        self.assertEqual(self.repo.get_run(run_id).state, RunState.REJECTED)
+        saved_filesystems = [
+            r for r in snapshot["results"]
+            if r["check_id"] == "infrastructure.filesystem.utilization"
+        ]
+        self.assertEqual(len(saved_filesystems), 6)
+        self.assertEqual(
+            [s["status"] for s in snapshot["site_summaries"]], ["PASS", "WARNING", "FAIL"]
+        )
+        html = render_final_html(snapshot)
+        pdf_lines = "\n".join(_result_lines(saved_filesystems))
+        for result in filesystems:
+            self.assertIn(result.message, html)
+            self.assertIn(result.message, pdf_lines)
+            self.assertIn(f"site: {result.site}", pdf_lines)
+            self.assertIn(f"target: {result.target}", pdf_lines)
+        pdf_path = self.repo.get_run(run_id).final_pdf_path
+        self.assertTrue((self.evidence.root / pdf_path).read_bytes().startswith(b"%PDF"))
 
     def test_missing_doctor_service_is_not_presented_as_healthy(self):
         config = dynamic_config(3)

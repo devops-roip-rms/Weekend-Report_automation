@@ -242,33 +242,47 @@ ERROR:
 
 ### Filesystem
 
-Only the root filesystem is validated.
+Weekend Report executes `df -h | grep mapper` on every configured infrastructure
+server in every site. It discovers mapper filesystems dynamically and evaluates every
+returned filesystem independently. No device inventory or specific mountpoint is configured;
+`/` is not required. Each result identifies the site, server, device, mountpoint, and usage.
 
-Expected:
+Versioned policy in `rules.yml`:
 
-```text
-path: /
-command: df -h /
+```yaml
+command: df -h | grep mapper
+match: mapper
 warning_percent: 70
 critical_percent: 80
+required: true
 ```
 
 NFS validation is not part of the Infrastructure module.
 
 PASS:
-- root filesystem exists;
-- utilization is below 70%.
+- an individual mapper filesystem's utilization is below 70%.
 
 WARNING:
-- root filesystem utilization is >= 70% and < 80%.
+- utilization is >= 70% and < 80%.
 
 FAIL:
-- required root filesystem is missing;
-- utilization is >= 80%.
+- utilization is >= 80%;
+- empty successful output or grep exit 1 without diagnostics:
+  "No mapper filesystems were found".
 
 ERROR:
-- filesystem command fails;
-- output is missing or cannot be parsed reliably.
+- SSH connectivity, authentication, strict known_hosts verification, or timeout fails;
+- command exit is greater than 1 (including SSH exit 255);
+- stderr diagnostics indicate collection may be incomplete, even with exit 0 or 1;
+- exit 1 unexpectedly includes output;
+- output is missing, malformed, truncated, or cannot be parsed reliably.
+
+The exact pipeline reports grep's exit status. A clean exit 1 is a reachable server
+with no matching filesystems, not an SSH failure. Diagnostics on stderr are treated
+conservatively as ERROR because a failing `df` can otherwise be masked by grep.
+The pipeline cannot expose a silent upstream failure that emits no diagnostics.
+Mixed valid and malformed output is ERROR rather than a partially successful check.
+Raw output and command metadata are retained in evidence alongside normalized results.
 
 ### Chrony
 

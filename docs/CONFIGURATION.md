@@ -194,6 +194,15 @@ instead of modifying Python code.
 
 Infrastructure policy remains in `rules.yml`, including filesystem and Chrony thresholds.
 
+The filesystem policy is `command: df -h | grep mapper`, `match: mapper`,
+`warning_percent: 70`, `critical_percent: 80`, and `required: true`. It discovers
+mapper filesystems dynamically on every server in every configured site and evaluates
+each independently. There is no mountpoint selector or configured mapper inventory;
+the `/` mount is not required. Do not add mapper devices or a command override to ENV.
+Usage < 70% is PASS, >= 70% and < 80% is WARNING, and >= 80% is FAIL.
+No matches (empty output or grep exit 1 without diagnostics) is FAIL. Technical
+collection failures, command diagnostics, and malformed output are ERROR.
+
 ## 9. Portainer
 
 Portainer runtime configuration contains only connection information.

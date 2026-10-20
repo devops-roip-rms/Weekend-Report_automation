@@ -20,7 +20,7 @@ class SSHExecutorTests(unittest.TestCase):
                 host="server.example.invalid",
                 port=22,
                 username="monitor",
-                command="df -h /",
+                command="df -h | grep mapper",
                 connect_timeout=5,
                 command_timeout=5,
                 key_path="",
@@ -36,7 +36,7 @@ class SSHExecutorTests(unittest.TestCase):
                 host="server.example.invalid",
                 port=22,
                 username="monitor",
-                command="df -h /",
+                command="df -h | grep mapper",
                 connect_timeout=5,
                 command_timeout=5,
                 key_path="/app/secrets/ssh_private_key",
@@ -59,7 +59,7 @@ class SSHExecutorTests(unittest.TestCase):
             host="server.example.invalid",
             port=2222,
             username="monitor",
-            command="df -h /",
+            command="df -h | grep mapper",
             connect_timeout=5,
             command_timeout=10,
             key_path="/app/secrets/ssh_private_key",
@@ -99,7 +99,7 @@ class SSHExecutorTests(unittest.TestCase):
             args[-2:],
             [
                 "monitor@server.example.invalid",
-                "df -h /",
+                "df -h | grep mapper",
             ],
         )
 

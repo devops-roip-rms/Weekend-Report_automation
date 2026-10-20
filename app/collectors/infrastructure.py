@@ -72,7 +72,7 @@ class InfrastructureCollector(Collector):
 
         try:
             filesystem = (server.get("filesystems") or [{}])[0]
-            df_command = filesystem.get("command") or "df -h /"
+            df_command = filesystem.get("command") or "df -h | grep mapper"
             df = self.ssh.run(
                 host=hostname,
                 port=port,
@@ -98,10 +98,16 @@ class InfrastructureCollector(Collector):
                 return payload
             # SSH itself worked.
             payload["reachable"] = True
-            if df.exit_code == 0:
-                payload["df"] = df.stdout
-            else:
-                payload["df_error"] = df.stderr or f"df exited {df.exit_code}"
+            # Keep raw output as evidence, including partial output on failure.
+            payload["df"] = df.stdout
+            # The pipeline returns grep's status. Diagnostics can expose a df
+            # failure even when grep returns 0 or 1; never trust partial data.
+            if df.stderr.strip():
+                payload["df_error"] = df.stderr
+            elif df.exit_code == 1 and df.stdout.strip():
+                payload["df_error"] = "grep reported no matches but returned output"
+            elif df.exit_code not in (0, 1):
+                payload["df_error"] = f"mapper filesystem command exited {df.exit_code}"
         except Exception as exc:
             payload["reachable"] = False
             payload["df_error"] = str(exc)

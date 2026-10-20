@@ -1036,7 +1036,7 @@ def _validate_servers(
                 if len(filesystems) != 1:
                     report.add_error(
                         f"{path}.filesystems",
-                        "must contain exactly one root filesystem check",
+                        "must contain exactly one mapper discovery policy",
                     )
                 for fs_idx, filesystem in enumerate(filesystems):
                     fs_path = f"{path}.filesystems[{fs_idx}]"
@@ -1046,9 +1046,14 @@ def _validate_servers(
                             "filesystem check must be an object",
                         )
                         continue
+                    if "path" in filesystem:
+                        report.add_error(
+                            f"{fs_path}.path",
+                            "mountpoint selection is not supported; mapper discovery is dynamic",
+                        )
                     fs_expected = {
-                        "path": "/",
-                        "command": "df -h /",
+                        "match": "mapper",
+                        "command": "df -h | grep mapper",
                     }
                     for field_name, expected_value in fs_expected.items():
                         value = filesystem.get(field_name)
@@ -1062,11 +1067,11 @@ def _validate_servers(
                     required_fs = filesystem.get("required")
                     if (
                         not is_unresolved_placeholder(required_fs)
-                        and not isinstance(required_fs, bool)
+                        and required_fs is not True
                     ):
                         report.add_error(
                             f"{fs_path}.required",
-                            "must be boolean",
+                            "must be true; mapper filesystems are required",
                         )
                     _validate_percentage(
                         filesystem.get("warning_percent"),
