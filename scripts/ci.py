@@ -135,6 +135,10 @@ def _python_module(module: str, *args: str) -> list[str]:
 
 def _ci_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
+
+    # Do not allow obsolete host/runner SSH configuration to contaminate
+    # the deterministic CI fixture environment.
+    env.pop("SSH_PRIVATE_KEY_PATH", None)
     defaults = {
         "POSTGRES_PASSWORD": "ci-only-postgres-password",
         "WEEKEND_REPORT_IMAGE": "weekend-report:ci-validation",
