@@ -143,6 +143,15 @@ class DynamicSiteWorkflowTests(unittest.TestCase):
                     self.repo, self.evidence, config, run_id, "reviewer", ReviewDecision.APPROVE
                 )
                 self.assertEqual(self.repo.get_run(run_id).state, RunState.APPROVED)
+                password = config["servers"]["ssh"]["password"]
+                self.assertNotIn(password, json.dumps(snapshot))
+                self.assertNotIn(password, render_final_html(snapshot))
+                self.assertNotIn(password, review.text)
+                infra_page = client.get(f"/runs/{run_id}/infrastructure")
+                self.assertNotIn(password, infra_page.text)
+                for artifact in self.evidence.root.rglob("*"):
+                    if artifact.is_file():
+                        self.assertNotIn(password.encode(), artifact.read_bytes())
                 self.assertEqual(len(snapshot["site_summaries"]), count)
                 self.assertEqual(len(snapshot["parity_summaries"]), 7 if count > 1 else 0)
                 self.assertTrue(all(r.status == CheckStatus.PASS for r in results))

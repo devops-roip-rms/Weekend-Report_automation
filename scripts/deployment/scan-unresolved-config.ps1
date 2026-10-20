@@ -64,7 +64,8 @@ $InfrastructureEnv = "deploy\docker\env\infrastructure.env"
 
 if (Test-Path $InfrastructureEnv) {
     foreach ($Name in @(
-        "SSH_PRIVATE_KEY_PATH",
+        "SSH_USERNAME",
+        "SSH_PASSWORD",
         "SSH_KNOWN_HOSTS_PATH"
     )) {
         $Value = Get-EnvValue $InfrastructureEnv $Name

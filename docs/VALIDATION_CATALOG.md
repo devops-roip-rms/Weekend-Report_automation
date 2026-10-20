@@ -220,21 +220,21 @@ ERROR:
 
 ## 5. Infrastructure
 
-Infrastructure collection is read-only and uses SSH with private-key authentication.
+Infrastructure collection is read-only and uses SSH with username/password authentication.
 
 SSH requirements:
 
-- private-key authentication only;
+- username/password authentication only;
 - strict SSH host-key verification;
 - a pre-verified `known_hosts` file is required;
-- interactive password authentication is not used;
+- password is passed directly to Paramiko in memory, never through process arguments;
 - host-key verification must not be disabled or changed to `accept-new`.
 
 ### Collection
 
 ERROR:
 - SSH runtime configuration is missing or unresolved;
-- private key or `known_hosts` configuration is unavailable;
+- username, password, or `known_hosts` configuration is unavailable;
 - server is unreachable;
 - SSH authentication or host verification fails;
 - command execution times out or fails;

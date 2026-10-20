@@ -332,7 +332,11 @@ def _load_servers(
     rules: dict[str, Any],
     site_refs: list[tuple[int, str]],
 ) -> dict[str, Any]:
+    if "SSH_PRIVATE_KEY_PATH" in env:
+        raise ConfigError("SSH_PRIVATE_KEY_PATH is obsolete; remove it and configure SSH_PASSWORD")
     policy = _mapping_at(rules, "infrastructure")
+    if "private_key_path" in _mapping_at(policy, "ssh"):
+        raise ConfigError("infrastructure.ssh.private_key_path is obsolete; remove it")
     ssh_policy = _mapping_at(policy, "ssh")
     filesystem_policy = copy.deepcopy(policy.get("filesystem", {}))
     chrony_policy = copy.deepcopy(policy.get("chrony", {}))
@@ -367,9 +371,9 @@ def _load_servers(
     return {
         "ssh": {
             "username": _env_string(env, "SSH_USERNAME"),
-            "auth": ssh_policy.get("auth", "private_key"),
+            "auth": ssh_policy.get("auth", "password"),
             "host_key_policy": ssh_policy.get("host_key_policy", "strict"),
-            "private_key_path": _env_string(env, "SSH_PRIVATE_KEY_PATH"),
+            "password": env.get("SSH_PASSWORD", ""),
             "known_hosts_path": _env_string(env, "SSH_KNOWN_HOSTS_PATH"),
             "connect_timeout": ssh_policy.get("connect_timeout", 5),
             "command_timeout": ssh_policy.get("command_timeout", 5),

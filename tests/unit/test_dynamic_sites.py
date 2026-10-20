@@ -379,7 +379,7 @@ class DynamicSitesTests(unittest.TestCase):
                 self.assertTrue(all(r.status == CheckStatus.PASS for r in results), results)
                 self.assertEqual(ssh.run.call_count, count * 4)
                 for call in ssh.run.call_args_list:
-                    self.assertTrue(call.kwargs["key_path"])
+                    self.assertTrue(call.kwargs["password"])
                     self.assertTrue(call.kwargs["known_hosts_path"])
 
     def test_per_site_server_counts_are_independent(self):

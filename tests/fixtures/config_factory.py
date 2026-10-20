@@ -53,7 +53,7 @@ def valid_env() -> dict[str, str]:
         "RABBITMQ_SITE2_TLS_VERIFY": "true",
         "RABBITMQ_SITE2_CA_FILE": "",
         "SSH_USERNAME": "fixture",
-        "SSH_PRIVATE_KEY_PATH": "/run/secrets/fixture-key",
+        "SSH_PASSWORD": "fake-ssh-password-for-tests-only",
         "SSH_KNOWN_HOSTS_PATH": "/run/secrets/fixture-known-hosts",
         "CHRONY_TIMEZONE": "UTC",
         "CHRONY_SOURCE": "fixture-ntp",

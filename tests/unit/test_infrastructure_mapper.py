@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -187,10 +186,10 @@ class MapperFilesystemTests(unittest.TestCase):
     def test_ssh_failures_remain_error(self):
         for exit_code, stderr, exception in (
             (255, "Connection refused", None),
-            (255, "Permission denied (publickey)", None),
+            (255, "SSH authentication failed", None),
             (255, "Host key verification failed", None),
             (None, "SSH command timed out", None),
-            (None, "", RuntimeError("SSH executable unavailable")),
+            (None, "", RuntimeError("SSH transport unavailable")),
         ):
             with self.subTest(stderr=stderr, exception=exception):
                 _, results, ssh = self.collect_and_validate(
@@ -204,15 +203,19 @@ class MapperFilesystemTests(unittest.TestCase):
         config = load_fixture_config()
         del config["servers"]["fixture_actual"]
         context = self.context(config)
-        with patch(
-            "app.executors.ssh.subprocess.run",
-            side_effect=subprocess.TimeoutExpired("ssh", 5),
-        ) as run:
+        with patch("app.executors.ssh.paramiko.SSHClient") as factory:
+            factory.return_value.connect.side_effect = TimeoutError("fake-timeout")
             actual = InfrastructureCollector().collect(context)
         results = InfrastructureValidator().validate(actual, config, context)
         self.assertEqual([r.status for r in results], [CheckStatus.ERROR] * 2)
-        self.assertEqual(run.call_count, 2)
-        self.assertTrue(all(call.args[0][-1] == COMMAND for call in run.call_args_list))
+        self.assertEqual(factory.return_value.connect.call_count, 2)
+        factory.return_value.exec_command.assert_not_called()
+
+    def test_exception_text_with_password_is_not_in_collector_evidence(self):
+        secret = valid_env()["SSH_PASSWORD"]
+        actual, results, _ = self.collect_and_validate(exception=RuntimeError(secret))
+        self.assertNotIn(secret, repr(actual))
+        self.assertNotIn(secret, repr(results))
 
     def test_live_collection_keeps_multiple_results_and_chrony_unchanged(self):
         raw = mapper_line(40, "/") + mapper_line(72, "/var", "/dev/mapper/vg-var")

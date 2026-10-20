@@ -109,3 +109,17 @@ site and retain their existing blocking behavior. Parity never clears independen
 failures. Splunk and manual DB review requirements are unchanged. Increasing sites or
 servers increases sequential collection time; review the configured heartbeat timeout
 against expected module duration without bypassing stale-worker protection.
+
+
+### Infrastructure SSH credentials and host trust
+
+Infrastructure authenticates with `SSH_USERNAME` and secret `SSH_PASSWORD`;
+`SSH_KNOWN_HOSTS_PATH=/app/secrets/known_hosts` independently verifies server identity.
+No SSH private key is needed. Missing credentials, unreadable trust files,
+unknown/changed keys, authentication failures, and timeouts remain ERROR.
+
+Correct credentials in runtime `env/infrastructure.env` without logging or committing
+the password. Verify a changed server key independently before replacing the
+read-only mounted trust file. Never bypass strict verification or auto-enroll keys.
+Rerun collection after correcting the cause; mapper and Chrony policies are unchanged.
+See [configuration](CONFIGURATION.md#infrastructure-ssh-credentials-and-host-trust).

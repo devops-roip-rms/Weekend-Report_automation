@@ -61,7 +61,7 @@ class InfrastructureCollector(Collector):
         hostname = str(server.get("hostname") or "")
         port = int(server.get("ssh_port") or 22)
         username = str(ssh_config.get("username") or "")
-        key_path = str(ssh_config.get("private_key_path") or "")
+        password = str(ssh_config.get("password") or "")
         known_hosts_path = str(ssh_config.get("known_hosts_path") or "")
         connect_timeout = int(ssh_config.get("connect_timeout") or 5)
         command_timeout = int(ssh_config.get("command_timeout") or 5)
@@ -80,7 +80,7 @@ class InfrastructureCollector(Collector):
                 command=str(df_command),
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
-                key_path=key_path,
+                password=password,
                 known_hosts_path=known_hosts_path,
             )
             payload["commands"]["df"] = {
@@ -88,8 +88,8 @@ class InfrastructureCollector(Collector):
                 "stderr": df.stderr,
                 "timeout": df.timeout,
             }
-            # Exit 255 is the standard SSH client failure status.
-            # None means the SSH command timed out.
+            # Preserve the legacy SSH failure status; None means transport,
+            # host verification, authentication, or timeout failure.
             if df.exit_code in (None, 255):
                 payload["reachable"] = False
                 payload["df_error"] = (
@@ -108,9 +108,9 @@ class InfrastructureCollector(Collector):
                 payload["df_error"] = "grep reported no matches but returned output"
             elif df.exit_code not in (0, 1):
                 payload["df_error"] = f"mapper filesystem command exited {df.exit_code}"
-        except Exception as exc:
+        except Exception:
             payload["reachable"] = False
-            payload["df_error"] = str(exc)
+            payload["df_error"] = "SSH collection failed"
             return payload
 
         try:
@@ -121,7 +121,7 @@ class InfrastructureCollector(Collector):
                 command="timedatectl show -p Timezone --value",
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
-                key_path=key_path,
+                password=password,
                 known_hosts_path=known_hosts_path,
             )
             tracking = self.ssh.run(
@@ -131,7 +131,7 @@ class InfrastructureCollector(Collector):
                 command="chronyc tracking",
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
-                key_path=key_path,
+                password=password,
                 known_hosts_path=known_hosts_path,
             )
             sources = self.ssh.run(
@@ -141,7 +141,7 @@ class InfrastructureCollector(Collector):
                 command="chronyc sources -n",
                 connect_timeout=connect_timeout,
                 command_timeout=command_timeout,
-                key_path=key_path,
+                password=password,
                 known_hosts_path=known_hosts_path,
             )
             payload["commands"]["timezone"] = {"exit_code": timezone.exit_code}
@@ -154,8 +154,8 @@ class InfrastructureCollector(Collector):
                 }
             else:
                 payload["chrony_error"] = "one or more Chrony/timezone commands failed"
-        except Exception as exc:
-            payload["chrony_error"] = str(exc)
+        except Exception:
+            payload["chrony_error"] = "Chrony/timezone collection failed"
         return payload
 
 

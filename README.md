@@ -320,3 +320,20 @@ independent site health. Splunk and manual DB review remain independent of site 
 The checked-in two-site examples remain valid. Add or remove numbered blocks in every
 module ENV file to match `SITE_COUNT`; no code change or fixed maximum inventory is needed.
 See [configuration patterns and allowed differences](docs/CONFIGURATION.md#dynamic-site-inventory-and-parity).
+
+
+### Infrastructure SSH credentials and host trust
+
+Infrastructure authenticates with username/password through Paramiko 5.0.1 and
+verifies servers against a pre-verified, read-only `known_hosts` file.
+
+```dotenv
+SSH_USERNAME=weekend_report
+SSH_PASSWORD=<secret>
+SSH_KNOWN_HOSTS_PATH=/app/secrets/known_hosts
+```
+
+Keep the real password in runtime `env/infrastructure.env` and never commit it.
+No SSH private key is required. Unknown/changed keys fail with ERROR; trust is never
+automatically enrolled. See [configuration](docs/CONFIGURATION.md#infrastructure-ssh-credentials-and-host-trust)
+and [deployment](docs/DEPLOYMENT.md#infrastructure-ssh-credentials-and-host-trust).

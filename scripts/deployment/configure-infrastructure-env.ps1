@@ -185,10 +185,10 @@ for ($siteNumber = 1; $siteNumber -le $siteCount; $siteNumber++) {
 $sshUsername = Read-RequiredValue "SSH username used on the infrastructure servers"
 
 Write-Host ""
-Write-Host "Select the SSH private key used by Weekend Report."
-$privateKeyContainerPath = Copy-SecretFile `
-    "Windows path to the SSH private key" `
-    "ssh_private_key"
+do {
+    $sshPassword = Read-Host "SSH password (secret; input is hidden)" -AsSecureString
+    if ($sshPassword.Length -eq 0) { Write-Host "Password is required." }
+} while ($sshPassword.Length -eq 0)
 
 Write-Host ""
 Write-Host "Select the pre-verified OpenSSH known_hosts file."
@@ -207,13 +207,13 @@ $chronyTimezone = Read-RequiredValue "Default expected timezone"
 $chronySource = Read-RequiredValue "Default expected selected Chrony source"
 
 $lines = New-Object 'System.Collections.Generic.List[string]'
-$lines.Add("# Site definitions, SSH identity paths, and dynamic server inventories.")
+$lines.Add("# Runtime SSH password is secret. Do not commit this file.")
 $lines.Add("")
 $lines.Add("SITE_COUNT=$siteCount")
 $lines.AddRange($siteDefinitions)
 $lines.Add("")
 $lines.Add("SSH_USERNAME=$sshUsername")
-$lines.Add("SSH_PRIVATE_KEY_PATH=$privateKeyContainerPath")
+
 $lines.Add("SSH_KNOWN_HOSTS_PATH=$knownHostsContainerPath")
 $lines.Add("")
 $lines.Add("CHRONY_TIMEZONE=$chronyTimezone")
@@ -224,19 +224,45 @@ for ($siteNumber = 1; $siteNumber -le $siteCount; $siteNumber++) {
     Add-ServerInventory $lines $siteNumber $serverCount $chronyTimezone $chronySource
 }
 
-[System.IO.File]::WriteAllLines(
-    (Resolve-Path $EnvPath),
-    $lines,
-    (New-Object System.Text.UTF8Encoding($false))
-)
+# Convert only when ready to write. Single quotes prevent Compose interpolation.
+# The shared ENV parser preserves the contents of these quotes exactly.
+$passwordPointer = [IntPtr]::Zero
+try {
+    $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sshPassword)
+    $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+    if (
+        [string]::IsNullOrWhiteSpace($plainPassword) -or
+        $plainPassword.Trim() -match '^<.*>$' -or
+        $plainPassword.Trim() -eq 'UNKNOWN' -or
+        $plainPassword.IndexOfAny([char[]]"'`r`n") -ge 0
+    ) {
+        throw "Password must be resolved and cannot contain single quotes or line breaks."
+    }
+    $lines.Add("SSH_PASSWORD='$plainPassword'")
+    [System.IO.File]::WriteAllLines(
+        (Resolve-Path $EnvPath),
+        $lines,
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+} catch {
+    # Never render an exception containing the secret-bearing write arguments.
+    throw "Could not write infrastructure ENV. Check password format and file permissions."
+} finally {
+    if ($passwordPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+    }
+    $plainPassword = $null
+    $lines.Clear()
+    $sshPassword.Dispose()
+}
 
 Write-Host ""
 Write-Host "Infrastructure ENV configuration completed."
 Write-Host "Ensure Portainer, DOCTOR, and RabbitMQ ENV blocks also cover sites 1 through $siteCount."
 Write-Host "Remove module site blocks above SITE_COUNT, then run configuration preflight."
-Write-Host "Runtime SSH files were copied to deploy/docker/secrets/."
+Write-Host "Pre-verified known_hosts was copied to deploy/docker/secrets/known_hosts."
 Write-Host "The ENV file uses container paths under /app/secrets."
-Write-Host "No private-key contents were displayed."
+Write-Host "SSH password was saved without displaying it. Never commit infrastructure.env."
 Write-Host ""
 Write-Host "IMPORTANT for the final Linux deployment: verify that the container user can read"
-Write-Host "the private key while the key still has restrictive OpenSSH permissions."
+Write-Host "known_hosts. Restrict access to env/infrastructure.env; no SSH private key is needed."

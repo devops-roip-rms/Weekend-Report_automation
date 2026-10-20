@@ -921,57 +921,40 @@ def _validate_servers(
     if not isinstance(ssh, dict):
         report.add_error("servers.ssh", "must be an object")
     else:
-        username = ssh.get("username")
-        if not is_unresolved_placeholder(username) and (
-            not isinstance(username, str) or not username.strip()
-        ):
-            report.add_error("servers.ssh.username", "must be a non-empty string")
-
+        fixture_mode = (
+            not production_preflight
+            and isinstance(servers_config.get("fixture_actual"), dict)
+        )
         auth = ssh.get("auth")
-        if not is_unresolved_placeholder(auth) and auth not in SSH_SUPPORTED_AUTH_TYPES:
-            report.add_error("servers.ssh.auth", "must be private_key")
-
+        if auth not in SSH_SUPPORTED_AUTH_TYPES or (auth != "password" and not fixture_mode):
+            report.add_error("servers.ssh.auth", "must be password outside explicit fixture mode")
         host_policy = ssh.get("host_key_policy")
-        if (
-            not is_unresolved_placeholder(host_policy)
-            and host_policy not in SSH_SUPPORTED_HOST_KEY_POLICIES
+        if host_policy not in SSH_SUPPORTED_HOST_KEY_POLICIES or (
+            host_policy != "strict" and not fixture_mode
         ):
-            report.add_error("servers.ssh.host_key_policy", "must be strict")
+            report.add_error("servers.ssh.host_key_policy", "must be strict outside fixture mode")
+        if "private_key_path" in ssh:
+            report.add_error("servers.ssh.private_key_path", "obsolete; remove this setting")
+
+        credentials_required = production_preflight and _infrastructure_enabled(config)
+        for field_name, env_name in (
+            ("username", "SSH_USERNAME"),
+            ("password", "SSH_PASSWORD"),
+            ("known_hosts_path", "SSH_KNOWN_HOSTS_PATH"),
+        ):
+            value = ssh.get(field_name)
+            if credentials_required and (
+                not isinstance(value, str) or _runtime_unset(value)
+            ):
+                report.add_error(
+                    f"servers.ssh.{field_name}",
+                    f"{env_name} runtime value is missing or unresolved",
+                )
+            elif value is not None and not isinstance(value, str):
+                report.add_error(f"servers.ssh.{field_name}", "must be a string")
 
         _validate_positive_number(ssh.get("connect_timeout"), "servers.ssh.connect_timeout", report)
         _validate_positive_number(ssh.get("command_timeout"), "servers.ssh.command_timeout", report)
-
-        private_key_path = ssh.get("private_key_path")
-        if (
-            auth == "private_key"
-            and production_preflight
-            and _infrastructure_enabled(config)
-            and _runtime_unset(private_key_path)
-        ):
-            report.add_error(
-                "servers.ssh.private_key_path",
-                "SSH_PRIVATE_KEY_PATH runtime value is missing or unresolved",
-            )
-        elif not _runtime_unset(private_key_path) and (
-            not isinstance(private_key_path, str) or not private_key_path.strip()
-        ):
-            report.add_error("servers.ssh.private_key_path", "must be a non-empty string")
-
-        known_hosts_path = ssh.get("known_hosts_path")
-        if (
-            host_policy == "strict"
-            and production_preflight
-            and _infrastructure_enabled(config)
-            and _runtime_unset(known_hosts_path)
-        ):
-            report.add_error(
-                "servers.ssh.known_hosts_path",
-                "SSH_KNOWN_HOSTS_PATH runtime value is missing or unresolved",
-            )
-        elif not _runtime_unset(known_hosts_path) and (
-            not isinstance(known_hosts_path, str) or not known_hosts_path.strip()
-        ):
-            report.add_error("servers.ssh.known_hosts_path", "must be a non-empty string")
 
     sites = servers_config.get("sites")
     if not isinstance(sites, dict) or not sites:
@@ -1369,7 +1352,7 @@ def _validate_placeholders(
             continue
         if not is_unresolved_placeholder(value):
             continue
-        message = f"unresolved value {value}"
+        message = "unresolved value" if "password" in path.lower() else f"unresolved value {value}"
         if unresolved_is_blocking:
             report.add_error(path, message)
         else:

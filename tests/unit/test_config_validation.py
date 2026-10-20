@@ -181,19 +181,19 @@ class ConfigValidationTests(unittest.TestCase):
         self.assertEqual(server["chrony"][0]["critical_offset"], 1.0)
         self.assertNotIn("nfs_mounts", server)
 
-    def test_infrastructure_uses_strict_private_key_ssh(self):
+    def test_infrastructure_uses_strict_password_ssh(self):
         config = load_valid_config()
         self.assertEqual(
             config["servers"]["ssh"]["auth"],
-            "private_key",
+            "password",
         )
         self.assertEqual(
             config["servers"]["ssh"]["host_key_policy"],
             "strict",
         )
         self.assertEqual(
-            config["servers"]["ssh"]["private_key_path"],
-            "/run/secrets/fixture-key",
+            config["servers"]["ssh"]["password"],
+            "fake-ssh-password-for-tests-only",
         )
         self.assertEqual(
             config["servers"]["ssh"]["known_hosts_path"],

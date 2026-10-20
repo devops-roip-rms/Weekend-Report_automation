@@ -108,7 +108,7 @@ rabbitmq:
 
 infrastructure:
   ssh:
-    auth: private_key
+    auth: password
     host_key_policy: strict
     connect_timeout: 5
     command_timeout: 5

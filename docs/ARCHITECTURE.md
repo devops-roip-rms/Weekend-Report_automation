@@ -364,3 +364,18 @@ see CONFIGURATION.md for target and whole-map syntax. UI site summaries follow r
 order and display names, service cards wrap responsively, and module pages render persisted
 parity findings only when available in a multi-site run. Infrastructure cards are keyed by
 site and server ID so inventories cannot be merged across sites accidentally.
+
+
+### Infrastructure SSH credentials and host trust
+
+`SSHExecutor` uses Paramiko 5.0.1, with agent and key discovery disabled.
+`SSH_USERNAME` and secret `SSH_PASSWORD` authenticate the application; the file
+at `SSH_KNOWN_HOSTS_PATH` verifies the server. Only that file is loaded, with
+`RejectPolicy`; absent/changed keys fail and the trust file is never modified.
+Non-default ports use OpenSSH `[host]:port` entries. No SSH private key is needed.
+
+The executor bounds connection/banner/authentication waits and the whole command
+phase, including exec acknowledgement and concurrent stdout/stderr collection.
+Fixed error categories and password redaction protect returned evidence; raw
+transport diagnostics are suppressed. Hashing sanitizes password fields.
+Never commit runtime passwords. See [runtime ENV and trust configuration](CONFIGURATION.md#infrastructure-ssh-credentials-and-host-trust).

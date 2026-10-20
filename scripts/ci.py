@@ -78,7 +78,7 @@ COMPOSE_ENV_FILE_KEYS = {
         "SITE2_DISPLAY_NAME",
         "SITE2_PURPOSE",
         "SSH_USERNAME",
-        "SSH_PRIVATE_KEY_PATH",
+        "SSH_PASSWORD",
         "SSH_KNOWN_HOSTS_PATH",
         "CHRONY_TIMEZONE",
         "CHRONY_SOURCE",
@@ -277,8 +277,8 @@ def gate_audit() -> None:
 def gate_compose_config() -> None:
     env = _ci_env()
     with _temporary_compose_env_files():
-        _run(["docker", "compose", "-f", str(COMPOSE_FILE), "config"], env=env)
-        _run(["docker", "compose", "-f", str(CI_COMPOSE_FILE), "config"], env=env)
+        _run(["docker", "compose", "-f", str(COMPOSE_FILE), "config", "--quiet"], env=env)
+        _run(["docker", "compose", "-f", str(CI_COMPOSE_FILE), "config", "--quiet"], env=env)
 
 
 def _wait_for_health(

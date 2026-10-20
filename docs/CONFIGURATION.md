@@ -177,7 +177,7 @@ Infrastructure configuration includes:
 
 - site display/identity values;
 - SSH username;
-- private key path;
+- secret SSH password;
 - strict known-hosts path;
 - expected Chrony source/timezone;
 - numbered server lists per site.
@@ -185,7 +185,8 @@ Infrastructure configuration includes:
 Example container paths:
 
 ```text
-SSH_PRIVATE_KEY_PATH=/app/secrets/ssh_private_key
+SSH_USERNAME=weekend_report
+SSH_PASSWORD=<secret>
 SSH_KNOWN_HOSTS_PATH=/app/secrets/known_hosts
 ```
 
@@ -652,3 +653,39 @@ A complete map exception must match exactly. Target exceptions may combine, but 
 mismatched target must be explicitly covered. A target exception no longer accidentally
 excuses unrelated mismatches elsewhere in the same field. Neither form changes health
 findings or permits unreliable collection data to pass.
+
+
+### Infrastructure SSH credentials and host trust
+
+Infrastructure uses username/password authentication through Paramiko 5.0.1.
+Username/password authenticates Weekend Report to the server; the pre-verified
+`known_hosts` file verifies the server's identity. Configure runtime
+`env/infrastructure.env` with:
+
+```dotenv
+SSH_USERNAME=weekend_report
+SSH_PASSWORD=<secret>
+SSH_KNOWN_HOSTS_PATH=/app/secrets/known_hosts
+```
+
+Never commit the real password or runtime ENV file. The configuration helper uses
+hidden secure input and quotes the password to prevent Compose interpolation.
+It rejects single quotes and line breaks; dollar signs, spaces, double quotes, and
+hash characters are preserved. Only `secrets/known_hosts` is needed for SSH,
+mounted read-only at `/app/secrets/known_hosts`; no SSH private key is required.
+Remove obsolete `SSH_PRIVATE_KEY_PATH` settings: the loader rejects their presence,
+including an empty value, without displaying their contents.
+
+Paramiko loads only the configured trust file and uses `RejectPolicy`, with agent
+and automatic key discovery disabled. Unknown or changed host keys and missing or
+unreadable trust files produce Infrastructure ERROR. Host keys are never enrolled
+or modified automatically. Non-default ports require `[hostname]:port` (or
+`[IP]:port`) entries. Verify host keys independently before replacing the trust file.
+Connection, banner, and authentication timeouts are configured; the command deadline
+also bounds channel opening, exec acknowledgement, and draining both output streams.
+Fixed error categories and output redaction keep credentials out of evidence,
+logs, UI, and PDF results. Configuration hashing redacts password values.
+
+Mapper collection remains exactly `df -h | grep mapper`: every returned mapper is
+validated independently (<70% PASS, 70–79% WARNING, >=80% FAIL). No mapper match is
+FAIL; SSH or technical command failures are ERROR. Chrony validation is unchanged.

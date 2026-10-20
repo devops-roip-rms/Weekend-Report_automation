@@ -538,7 +538,7 @@ count. It writes the chosen inventory and reminds you to align the other module 
 See CONFIGURATION.md for the complete numbered-variable patterns and optional settings.
 
 Each configured infrastructure server in each site runs `df -h | grep mapper` over
-strict private-key SSH. Mapper discovery is dynamic: do not configure device names
+password authentication with strict known_hosts. Mapper discovery is dynamic: do not configure device names
 in ENV or require a `/` mount. The versioned `rules.yml` policy evaluates every mapper
 filesystem independently: < 70% PASS, >= 70% and < 80% WARNING, >= 80% FAIL.
 No matches (empty output or grep exit 1 without diagnostics) is FAIL; technical SSH,
@@ -549,6 +549,60 @@ Run configuration preflight after changing inventory and extend allowed-differen
 all participating runtime IDs. One-site deployments run independent checks and can be
 approved without parity. Multi-site deployments run configured parity after independent
 health validation; a parity PASS cannot clear a health failure. Splunk, manual DB review,
-CSRF, private-key SSH, strict known_hosts, and existing TLS requirements are unchanged.
+CSRF, strict known_hosts, and existing TLS requirements are unchanged.
+SSH uses username/password authentication.
 Collection is sequential, so account for additional endpoint/server latency when sizing
 worker resources and reviewing the existing stale-worker timeout policy.
+
+
+### Infrastructure SSH credentials and host trust
+
+Infrastructure uses username/password authentication through Paramiko 5.0.1.
+Username/password authenticates Weekend Report to the server; the pre-verified
+`known_hosts` file verifies the server's identity. Configure runtime
+`env/infrastructure.env` with:
+
+```dotenv
+SSH_USERNAME=weekend_report
+SSH_PASSWORD=<secret>
+SSH_KNOWN_HOSTS_PATH=/app/secrets/known_hosts
+```
+
+Never commit the real password or runtime ENV file. The configuration helper uses
+hidden secure input and quotes the password to prevent Compose interpolation.
+It rejects single quotes and line breaks; dollar signs, spaces, double quotes, and
+hash characters are preserved. Only `secrets/known_hosts` is needed for SSH,
+mounted read-only at `/app/secrets/known_hosts`; no SSH private key is required.
+Remove obsolete `SSH_PRIVATE_KEY_PATH` settings: the loader rejects their presence,
+including an empty value, without displaying their contents.
+
+Paramiko loads only the configured trust file and uses `RejectPolicy`, with agent
+and automatic key discovery disabled. Unknown or changed host keys and missing or
+unreadable trust files produce Infrastructure ERROR. Host keys are never enrolled
+or modified automatically. Non-default ports require `[hostname]:port` (or
+`[IP]:port`) entries. Verify host keys independently before replacing the trust file.
+Connection, banner, and authentication timeouts are configured; the command deadline
+also bounds channel opening, exec acknowledgement, and draining both output streams.
+Fixed error categories and output redaction keep credentials out of evidence,
+logs, UI, and PDF results. Configuration hashing redacts password values.
+
+Mapper collection remains exactly `df -h | grep mapper`: every returned mapper is
+validated independently (<70% PASS, 70–79% WARNING, >=80% FAIL). No mapper match is
+FAIL; SSH or technical command failures are ERROR. Chrony validation is unchanged.
+
+
+Rebuild and transfer both the runtime-base and CI images after this dependency
+change. Paramiko is pinned in both requirements files and installed with its
+dependencies during the existing connected image preparation step. Regenerate the
+CI image's baked dependency audit and requirements hash when rebuilding it.
+The development requirements also pin `types-paramiko==5.0.0.20261006` for mypy.
+The application Dockerfile checks the Paramiko version so an old runtime base fails
+the offline build. No package retrieval is added to application builds or container
+startup; after `docker load`, the final image already contains the SSH dependencies.
+The existing OpenSSH client remains available for operator tooling.
+
+
+Paramiko 5.0.1 excludes legacy SHA-1 SSH algorithms. Servers must offer supported
+modern algorithms; do not re-enable obsolete algorithms to work around a failure.
+RSA public-key entries can still use the normal `ssh-rsa` known_hosts file format
+when the server negotiates RSA-SHA2 signatures.

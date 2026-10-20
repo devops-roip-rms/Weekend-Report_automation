@@ -274,7 +274,7 @@ class CIConfigTests(unittest.TestCase):
             "PORTAINER_SITE2_TOKEN",
             "RABBITMQ_SITE1_PASSWORD",
             "RABBITMQ_SITE2_PASSWORD",
-            "SSH_PRIVATE_KEY_PATH",
+            "SSH_PASSWORD",
         ):
             self.assertNotIn(forbidden, combined)
 

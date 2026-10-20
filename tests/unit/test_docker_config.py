@@ -83,7 +83,7 @@ class DockerConfigTests(unittest.TestCase):
             "portainer.env.example": "PORTAINER_SITE1_TOKEN=<TBD>",
             "doctor.env.example": "DOCTOR_SITE1_API_URL=<TBD>",
             "rabbitmq.env.example": "RABBITMQ_SITE1_PASSWORD=<TBD>",
-            "infrastructure.env.example": "SSH_PRIVATE_KEY_PATH=<TBD>",
+            "infrastructure.env.example": "SSH_PASSWORD=<TBD>",
             "splunk.env.example": "SPLUNK_DASHBOARD_COUNT=<TBD>",
         }
         for filename, expected in examples.items():
