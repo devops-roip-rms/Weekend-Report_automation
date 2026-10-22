@@ -1,4 +1,4 @@
-$Password = "newSp@rk2020" | ConvertTo-SecureString -AsPlainText -Force
+$Password = "<TBD>" | ConvertTo-SecureString -AsPlainText -Force
 $User = "root"
 $Credential = New-Object System.Management.Automation.PSCredential ($User, $Password)
 
